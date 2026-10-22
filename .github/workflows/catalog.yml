@@ -17,7 +17,7 @@ on:
 permissions:
   contents: read
 
-# One workflow-wide lock includes build AND deploy. Never let an older run deploy after a newer run.
+# One workflow-wide lock includes build AND deploy; no overlapping catalog deployments.
 concurrency:
   group: catalog-pages
   cancel-in-progress: false

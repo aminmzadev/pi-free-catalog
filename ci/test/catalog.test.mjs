@@ -86,7 +86,7 @@ test('only explicit bootstrap plus HTTP404 permits a first deployment',async()=>
  const missing=async()=>new Response(null,{status:404});assert.equal(await loadPrevious({bootstrap:true,fetcher:missing}),null);await assert.rejects(loadPrevious({fetcher:missing}));
 });
 test('bootstrap cannot overwrite a live snapshot; normal reads validate it',async()=>{
- const fetcher=async url=>{assert.equal(url,PREVIOUS_URL);return Response.json(baseline);};
+ const fetcher=async url=>{const parsed=new URL(url);assert.equal(parsed.origin+parsed.pathname,PREVIOUS_URL);assert.deepEqual([...parsed.searchParams.keys()],['catalog_read']);assert.match(parsed.searchParams.get('catalog_read'),/^[a-f0-9-]{36}$/);return Response.json(baseline);};
  await assert.rejects(loadPrevious({bootstrap:true,expectedRules:rules,fetcher,now:Date.parse(later)}),/Bootstrap is forbidden/);
  assert.equal((await loadPrevious({expectedRules:rules,fetcher,now:Date.parse(later)})).integrity.payloadHash,baseline.integrity.payloadHash);
 });
@@ -129,4 +129,13 @@ test('producer fields and all-failed/fake source bookkeeping are validated indep
 test('source row limits bound reconciliation work and cannot be bypassed by review approval',()=>{
  assert.throws(()=>project('zen',{data:Array.from({length:10001},(_,i)=>({id:'model-'+i}))}),/safety limit/);
  assert.throws(()=>project('ovh',{data:Array.from({length:2001},(_,i)=>({id:'model-'+i}))}),/safety limit/);
+});
+test('recovery reads bypass a warm CDN using unique backend-generated query keys only',async()=>{
+ const seen=[];
+ const edge=async(url,init)=>{
+  const parsed=new URL(url);assert.equal(parsed.origin+parsed.pathname,PREVIOUS_URL);assert.equal(init.cache,'no-store');assert.equal(init.headers['cache-control'],'no-cache');
+  assert.deepEqual([...parsed.searchParams.keys()],['catalog_read']);const nonce=parsed.searchParams.get('catalog_read');assert.match(nonce,/^[a-f0-9-]{36}$/);seen.push(nonce);return Response.json(baseline);
+ };
+ await loadPrevious({expectedRules:rules,fetcher:edge,now:Date.parse(later)});await loadPrevious({expectedRules:rules,fetcher:edge,now:Date.parse(later)});assert.equal(new Set(seen).size,2);
+ await assert.rejects(readJSON(SOURCES.zen,{cacheBust:true,fetcher:edge}),/limited/);
 });

@@ -1,6 +1,6 @@
 // Repository-only backend. The extension does not import this module.
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { SOURCES, validateSource, validateState, reconcile, summary, modelRows } from '../../src/catalog.js';
 export { SOURCES };
@@ -118,11 +118,15 @@ export function validateSnapshot(snapshot, { expectedRules, now = Date.now() } =
 export class FetchFailure extends Error {
   constructor(code, httpStatus = null) { super(code); this.code = code; this.httpStatus = httpStatus; }
 }
-export async function readJSON(url, { fetcher = globalThis.fetch, maxBytes = MAX_SOURCE_BYTES, timeoutMs = 20000 } = {}) {
+export async function readJSON(url, { fetcher = globalThis.fetch, maxBytes = MAX_SOURCE_BYTES, timeoutMs = 20000, cacheBust = false } = {}) {
   assert.ok(Object.values(SOURCES).includes(url) || url === PREVIOUS_URL, 'URL outside fixed allowlist');
+  assert.ok(!cacheBust || url === PREVIOUS_URL, 'Cache busting is limited to the fixed Pages endpoint');
+  // Cache-Control alone does not evict an already-warm GitHub Pages CDN entry.
+  // Only this backend-generated UUID query is permitted; callers cannot supply a URL/query.
+  const requestURL = cacheBust ? url + '?catalog_read=' + randomUUID() : url;
   const signal = AbortSignal.timeout(timeoutMs);
   let response;
-  try { response = await fetcher(url, { method: 'GET', redirect: 'error', signal, headers: { accept:'application/json','cache-control':'no-cache','user-agent':'pi-free-catalog-backend/1' } }); }
+  try { response = await fetcher(requestURL, { method: 'GET', redirect: 'error', cache: 'no-store', signal, headers: { accept:'application/json','cache-control':'no-cache','user-agent':'pi-free-catalog-backend/1' } }); }
   catch { throw new FetchFailure(signal.aborted ? 'timeout' : 'network'); }
   if (response.status !== 200) { await response.body?.cancel().catch(() => {}); throw new FetchFailure('http', response.status); }
   const reader = response.body?.getReader(); if (!reader) throw new FetchFailure('json');
@@ -142,7 +146,7 @@ export async function readJSON(url, { fetcher = globalThis.fetch, maxBytes = MAX
 }
 export async function loadPrevious({ bootstrap = false, fetcher = globalThis.fetch, now = Date.now(), expectedRules } = {}) {
   try {
-    const { data } = await readJSON(PREVIOUS_URL,{fetcher,maxBytes:MAX_SNAPSHOT_BYTES});
+    const { data } = await readJSON(PREVIOUS_URL,{fetcher,maxBytes:MAX_SNAPSHOT_BYTES,cacheBust:true});
     assert.ok(!bootstrap, 'Bootstrap is forbidden when a previous snapshot exists');
     return validateSnapshot(data,{now,expectedRules});
   } catch (error) {
