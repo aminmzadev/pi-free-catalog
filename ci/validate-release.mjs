@@ -1,0 +1,11 @@
+import { readFile, mkdir, writeFile } from 'node:fs/promises';
+import { json, checkRelease, checkReleaseGit, assertUnpublished, outputs } from './lib.mjs';
+const event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, 'utf8'));
+const pkg = await json('package.json'), lock = await json('package-lock.json');
+const release = checkRelease({ eventName: process.env.GITHUB_EVENT_NAME, repository: process.env.GITHUB_REPOSITORY, ref: process.env.GITHUB_REF, sha: process.env.GITHUB_SHA, event }, pkg, lock);
+checkReleaseGit(release);
+await assertUnpublished(release.version);
+await mkdir('artifacts/release', { recursive: true });
+await writeFile('artifacts/release/validated-event.json', JSON.stringify(release, null, 2) + '\n');
+await outputs({ version: release.version });
+console.log(`Approved event, matching tag/main ancestry and unpublished version: ${release.tag}`);

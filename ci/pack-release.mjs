@@ -1,0 +1,24 @@
+import { mkdir, writeFile, readFile, readdir } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import assert from 'node:assert/strict';
+import { json, checkMetadata, run, sha256, integrity, outputs } from './lib.mjs';
+const pkg = await json('package.json'); checkMetadata(pkg, await json('package-lock.json'));
+if (process.env.GITHUB_ACTIONS === 'true') assert.equal(run('git',['status','--porcelain','--untracked-files=normal']).trim(),'','Refusing to pack a modified release checkout');
+const directory = resolve('artifacts/release'); await mkdir(directory, { recursive: true });
+const result = JSON.parse(run('npm', ['pack', '--json', '--ignore-scripts', '--pack-destination', directory]));
+const packed = Array.isArray(result) ? result[0] : Object.values(result)[0];
+assert.equal(packed.name, pkg.name); assert.equal(packed.version, pkg.version);
+assert.equal(packed.filename, `${pkg.name}-${pkg.version}.tgz`);
+const paths = packed.files.map(f => f.path);
+const required = ['index.js','package.json','README.md','CHANGELOG.md','LICENSE', ...((await readdir('src')).filter(n => n.endsWith('.js')).map(n => 'src/' + n)), 'test/helpers.mjs', 'test/fixtures/manifest.json', ...((await readdir('test/fixtures')).filter(n => n.endsWith('.gz')).map(n => 'test/fixtures/' + n))];
+for (const name of required) assert.ok(paths.includes(name), `Missing package file: ${name}`);
+for (const name of paths) assert.ok(!/(?:^|\/)(?:\.git|\.github|ci|node_modules|artifacts|verification|__pycache__|\.npmrc|\.env|\.netrc)(?:\/|$)|\.(?:pem|key|pyc|log)$/.test(name), `Forbidden package file: ${name}`);
+const bytes = await readFile(resolve(directory, packed.filename));
+// Independently inspect the actual archive, not just npm's file list. No extraction occurs.
+run('python3', ['-c', `import tarfile,sys,pathlib,json\nwith tarfile.open(sys.argv[1]) as t:\n names=[]\n for m in t.getmembers():\n  p=pathlib.PurePosixPath(m.name)\n  assert m.isfile() and not m.issym() and not m.islnk() and p.parts[0]=='package' and '..' not in p.parts,m.name\n  names.append(str(p.relative_to('package')))\n assert len(names)==len(set(names))\n assert set(names)==set(json.loads(sys.argv[2]))\n`, resolve(directory, packed.filename), JSON.stringify(paths)]);
+const commit = run('git', ['rev-parse','HEAD']).trim(); assert.match(commit, /^[a-f0-9]{40}$/);
+const receipt = { name: pkg.name, version: pkg.version, filename: packed.filename, bytes: bytes.length, sha256: sha256(bytes), integrity: integrity(bytes), fileCount: paths.length, commit };
+await writeFile(resolve(directory, 'release.json'), JSON.stringify(receipt, null, 2) + '\n');
+await writeFile(resolve(directory, 'pack-manifest.json'), JSON.stringify(packed, null, 2) + '\n');
+await outputs({ sha256: receipt.sha256, filename: receipt.filename });
+console.log(JSON.stringify(receipt, null, 2));

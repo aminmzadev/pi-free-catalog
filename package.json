@@ -58,5 +58,13 @@
     "@earendil-works/pi-ai": "1.4.0",
     "@earendil-works/pi-coding-agent": "1.4.0",
     "@earendil-works/pi-tui": "1.4.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aminmzadev/pi-free-catalog.git"
+  },
+  "homepage": "https://github.com/aminmzadev/pi-free-catalog#readme",
+  "bugs": {
+    "url": "https://github.com/aminmzadev/pi-free-catalog/issues"
   }
 }

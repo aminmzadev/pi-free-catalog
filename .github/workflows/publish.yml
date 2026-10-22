@@ -1,0 +1,112 @@
+name: Publish
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch: # Dry run ONLY. This event can never reach the publish job.
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-publish-pi-free-catalog
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.repository == 'aminmzadev/pi-free-catalog' && (github.event_name == 'workflow_dispatch' || (github.event.action == 'published' && github.event.release.draft == false && github.event.release.prerelease == false))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+      sha256: ${{ steps.pack.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26.0.0'
+          package-manager-cache: false
+      - name: Check pinned toolchain
+        run: |
+          test "$(node --version)" = 'v26.0.0'
+          test "$(npm --version)" = '11.12.1'
+      - name: Stable release, exact tag/lock/commit/main and registry guards
+        if: github.event_name == 'release'
+        run: node ci/validate-release.mjs
+      - name: Lockfile install (no dependency lifecycle hooks)
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Full source and automation verification
+        run: |
+          npm run verify
+          node ci/check.mjs
+          node --test ci/test/*.test.mjs
+          node ci/lint-workflows.mjs
+      - name: Build and inspect the only publication TGZ
+        id: pack
+        run: node ci/pack-release.mjs
+      - name: Test exact TGZ in clean customer installation
+        run: node ci/test-installed.mjs
+      - name: npm publish dry run (never obtains OIDC or publishes)
+        env:
+          TARBALL: ${{ steps.pack.outputs.filename }}
+        run: npm publish "artifacts/release/$TARBALL" --dry-run --ignore-scripts --access=public --tag=latest --registry=https://registry.npmjs.org/
+      - name: Upload immutable verified artifact
+        id: upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: verified-npm-package
+          path: artifacts/release/
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: OIDC publish and independent registry verification
+    needs: build
+    if: github.repository == 'aminmzadev/pi-free-catalog' && github.event_name == 'release' && github.event.action == 'published' && github.event.release.draft == false && github.event.release.prerelease == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: npm-publish
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      EXPECTED_SHA256: ${{ needs.build.outputs.sha256 }}
+      NPM_CONFIG_UPDATE_NOTIFIER: 'false'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26.0.0'
+          package-manager-cache: false
+      - name: Check pinned OIDC-capable toolchain
+        run: |
+          test "$(node --version)" = 'v26.0.0'
+          test "$(npm --version)" = '11.12.1'
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact-id }}
+          path: artifacts/release
+          merge-multiple: true
+          digest-mismatch: error
+      - name: Revalidate release/hash/unpublished version, then publish exact TGZ once
+        env:
+          NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/npm-oidc-userconfig
+        run: node ci/publish.mjs
+      - name: Bounded registry version/latest/downloaded-byte verification
+        run: node ci/verify-registry.mjs
+      - name: Preserve publication and registry receipts
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: npm-publication-receipts
+          path: artifacts/release/
+          if-no-files-found: warn
+          retention-days: 90
