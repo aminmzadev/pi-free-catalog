@@ -1,0 +1,62 @@
+{
+  "name": "pi-free-catalog",
+  "version": "0.1.6",
+  "description": "Live, auditable anonymous Kilo, OpenCode and OVHcloud model catalogs for Pi. No account or name-based free filtering.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Amin Mozaffari <aminmozaffari1185@gmail.com>",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "kilo",
+    "opencode",
+    "free-models",
+    "ovhcloud"
+  ],
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "pi": {
+    "extensions": [
+      "./index.js"
+    ]
+  },
+  "exports": {
+    ".": "./index.js",
+    "./catalog": "./src/catalog.js"
+  },
+  "files": [
+    "index.js",
+    "src/*.js",
+    "test/*.mjs",
+    "test/fixtures/*.gz",
+    "test/fixtures/manifest.json",
+    "scripts/*.mjs",
+    "scripts/*.js",
+    "scripts/*.py",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "test": "node --test test/*.test.mjs",
+    "catalog": "node scripts/catalog.mjs",
+    "verify": "npm run check && npm test && npm pack --dry-run --ignore-scripts",
+    "prepublishOnly": "npm run verify"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "1.4.0",
+    "@earendil-works/pi-coding-agent": "1.4.0",
+    "@earendil-works/pi-tui": "1.4.0"
+  }
+}

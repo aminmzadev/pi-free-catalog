@@ -1,0 +1,29 @@
+# Dependencies and generated output
+node_modules/
+.cache/
+.npm/
+coverage/
+dist/
+build/
+__pycache__/
+*.py[cod]
+
+# Credentials and machine-local settings
+.env
+.env.*
+!.env.example
+.npmrc
+.netrc
+*.pem
+*.key
+
+# Local catalog data, live evidence and release archives
+free-catalog/
+live-proof/
+ovh-live-proof/
+artifacts/
+verification/
+*.log
+*.tgz
+*.zip
+.DS_Store
