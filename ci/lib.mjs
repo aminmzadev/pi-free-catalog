@@ -126,6 +126,17 @@ export async function checkArtifact(directory, pkg, { expectedSha256, commit } =
   return { file, bytes, receipt };
 }
 
+export function checkDryRunResult(status, stderr, alreadyPublished, version) {
+  assert.match('v' + version, STABLE_TAG);
+  if (!alreadyPublished) { assert.equal(status, 0, 'npm publish dry-run failed'); return 'unpublished-version-dry-run-passed'; }
+  assert.equal(status, 1, 'Expected npm to refuse an already published version');
+  const expected = `npm error You cannot publish over the previously published versions: ${version}.`;
+  const errors = stderr.split(/\r?\n/).map(line => line.trim()).filter(line => line.startsWith('npm error '));
+  assert.ok(errors.includes(expected), 'Expected immutable-version refusal was not returned');
+  assert.ok(errors.every(line => line === expected || line.startsWith('npm error A complete log of this run can be found in: ')), 'Unexpected additional npm error; failing closed');
+  return 'existing-version-refusal-verified';
+}
+
 export async function outputs(values) {
   if (!process.env.GITHUB_OUTPUT) return;
   for (const value of Object.values(values)) assert.match(String(value), /^[a-zA-Z0-9._-]+$/, 'Unsafe workflow output');

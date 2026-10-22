@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { checkDryRunResult } from '../lib.mjs';
+const version='0.1.6', refusal=`npm error You cannot publish over the previously published versions: ${version}.\n`;
+test('new version: only zero dry-run exit status succeeds',()=>assert.equal(checkDryRunResult(0,'',false,version),'unpublished-version-dry-run-passed'));
+test('new version: any error fails',()=>assert.throws(()=>checkDryRunResult(1,refusal,false,version)));
+test('existing version: exact immutable refusal is an explicitly labeled negative test',()=>assert.equal(checkDryRunResult(1,refusal+'npm error A complete log of this run can be found in: /tmp/log\n',true,version),'existing-version-refusal-verified'));
+test('existing version: unexpected zero status fails',()=>assert.throws(()=>checkDryRunResult(0,'',true,version)));
+test('existing version: network/auth/other failures are never suppressed',()=>{for(const error of ['npm error code E401','npm error code ECONNRESET','npm error unexpected registry response'])assert.throws(()=>checkDryRunResult(1,error,true,version));});
+test('existing version: unrelated errors accompanying refusal fail closed',()=>assert.throws(()=>checkDryRunResult(1,refusal+'npm error code E401',true,version)));
+test('existing version: refusal for a different version fails',()=>assert.throws(()=>checkDryRunResult(1,refusal.replace('0.1.6','0.1.5'),true,version)));
