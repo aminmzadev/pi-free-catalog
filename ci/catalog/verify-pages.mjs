@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { run } from '../lib.mjs';
+import { validateSnapshot, rulesHash, sha256, MAX_SNAPSHOT_BYTES } from './core.mjs';
+assert.match(process.env.EXPECTED_SNAPSHOT_SHA256 || '',/^[a-f0-9]{64}$/);
+const json=run('python3',['-c',`import tarfile,sys,pathlib\nallowed={'index.html','catalog/v1/latest.json','catalog/v1/schema.json'}\nwith tarfile.open(sys.argv[1]) as t:\n seen=set();size=0\n for m in t.getmembers():\n  p=pathlib.PurePosixPath(m.name)\n  assert not p.is_absolute() and '..' not in p.parts,m.name\n  assert m.isdir() or m.isfile(),m.name\n  if m.isdir():\n   assert str(p) in {'.','catalog','catalog/v1'},m.name\n   continue\n  n=str(p);assert n in allowed and n not in seen,n\n  seen.add(n);size+=m.size;assert size<=40000000\n assert seen==allowed\n payload=t.extractfile('catalog/v1/latest.json') if 'catalog/v1/latest.json' in t.getnames() else t.extractfile('./catalog/v1/latest.json')\n b=payload.read(${MAX_SNAPSHOT_BYTES}+1);assert len(b)<=${MAX_SNAPSHOT_BYTES}\n sys.stdout.buffer.write(b)\n`,'artifacts/catalog/download/artifact.tar']);
+assert.equal(sha256(json),process.env.EXPECTED_SNAPSHOT_SHA256,'Downloaded snapshot differs from validated build output');
+const snapshot=validateSnapshot(JSON.parse(json),{expectedRules:await rulesHash()});
+assert.equal(snapshot.producer.commit,process.env.GITHUB_SHA);
+assert.equal(snapshot.producer.runId,process.env.GITHUB_RUN_ID);
+console.log('Exact immutable Pages artifact: snapshot hash, contract, production rules and commit/run identity verified.');

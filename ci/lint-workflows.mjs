@@ -12,6 +12,6 @@ try {
   assert.equal(sha256(await readFile(archive)),checksum,'Actionlint archive checksum mismatch');
   run('tar',['-xzf',archive,'-C',directory,'actionlint']);
   assert.match(run(executable,['--version']),new RegExp('^'+version.replaceAll('.','\\.')));
-  run(executable,['-color','.github/workflows/ci.yml','.github/workflows/publish.yml'],{inherit:true});
+  run(executable,['-color','.github/workflows/ci.yml','.github/workflows/publish.yml','.github/workflows/catalog.yml'],{inherit:true});
   console.log('Pinned actionlint workflow validation: PASS');
 } finally { await rm(directory,{recursive:true,force:true}); }

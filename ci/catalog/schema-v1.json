@@ -1,0 +1,432 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aminmzadev.github.io/pi-free-catalog/catalog/v1/schema.json",
+  "title": "Pi Free Catalog backend snapshot v1",
+  "description": "Envelope schema. core.mjs additionally enforces production source semantics, timestamps, reconciliation, hashes and quality gates.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "producer",
+    "rulesHash",
+    "sources",
+    "catalog",
+    "summary",
+    "quality",
+    "integrity"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "producer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "workflow",
+        "commit",
+        "runId"
+      ],
+      "properties": {
+        "repository": {
+          "const": "aminmzadev/pi-free-catalog"
+        },
+        "workflow": {
+          "const": "catalog.yml"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$",
+          "minLength": 40,
+          "maxLength": 40
+        },
+        "runId": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^[1-9][0-9]*$"
+            }
+          ]
+        }
+      }
+    },
+    "rulesHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "minLength": 64,
+      "maxLength": 64
+    },
+    "sources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kilo",
+        "zen",
+        "official",
+        "modelsdev",
+        "pi",
+        "ovh",
+        "ovhmeta"
+      ],
+      "properties": {
+        "kilo": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/source"
+            },
+            {
+              "properties": {
+                "url": {
+                  "const": "https://api.kilo.ai/api/gateway/models"
+                }
+              }
+            }
+          ]
+        },
+        "zen": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/source"
+            },
+            {
+              "properties": {
+                "url": {
+                  "const": "https://opencode.ai/zen/v1/models"
+                }
+              }
+            }
+          ]
+        },
+        "official": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/source"
+            },
+            {
+              "properties": {
+                "url": {
+                  "const": "https://models.opencode.ai/api.json"
+                }
+              }
+            }
+          ]
+        },
+        "modelsdev": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/source"
+            },
+            {
+              "properties": {
+                "url": {
+                  "const": "https://models.dev/api.json"
+                }
+              }
+            }
+          ]
+        },
+        "pi": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/source"
+            },
+            {
+              "properties": {
+                "url": {
+                  "const": "https://pi.dev/api/models/providers/opencode?types=chat,image,classifier"
+                }
+              }
+            }
+          ]
+        },
+        "ovh": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/source"
+            },
+            {
+              "properties": {
+                "url": {
+                  "const": "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/models"
+                }
+              }
+            }
+          ]
+        },
+        "ovhmeta": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/source"
+            },
+            {
+              "properties": {
+                "url": {
+                  "const": "https://catalog.endpoints.ai.ovh.net/rest/v1/models_v2"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "catalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entries",
+        "changes",
+        "history"
+      ],
+      "properties": {
+        "entries": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 30000,
+          "additionalProperties": {
+            "type": "object"
+          }
+        },
+        "changes": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "history": {
+          "type": "array",
+          "maxItems": 2000,
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "kilo",
+        "zen",
+        "ovh"
+      ]
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "freshSources",
+        "retainedSources",
+        "largeChanges",
+        "largeChangesApproved"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "fresh",
+            "degraded"
+          ]
+        },
+        "freshSources": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 7
+        },
+        "retainedSources": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 6
+        },
+        "largeChanges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "name",
+              "before",
+              "after"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "source-rows",
+                  "eligible-models"
+                ]
+              },
+              "name": {
+                "enum": [
+                  "kilo",
+                  "zen",
+                  "official",
+                  "modelsdev",
+                  "pi",
+                  "ovh",
+                  "ovhmeta"
+                ]
+              },
+              "before": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "after": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "largeChangesApproved": {
+          "type": "boolean"
+        }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm",
+        "payloadHash"
+      ],
+      "properties": {
+        "algorithm": {
+          "const": "sha256"
+        },
+        "payloadHash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "minLength": 64,
+          "maxLength": 64
+        }
+      }
+    }
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "url",
+        "fresh",
+        "status",
+        "fetchedAt",
+        "attemptedAt",
+        "data",
+        "dataSha256",
+        "bodySha256",
+        "rowCount",
+        "failure",
+        "consecutiveFailures",
+        "firstFailureAt"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "fresh": {
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "fresh",
+            "retained"
+          ]
+        },
+        "fetchedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "attemptedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "data": {
+          "type": [
+            "object",
+            "array"
+          ]
+        },
+        "dataSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "minLength": 64,
+          "maxLength": 64
+        },
+        "bodySha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "minLength": 64,
+          "maxLength": 64
+        },
+        "rowCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "failure": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "code",
+                "httpStatus"
+              ],
+              "properties": {
+                "code": {
+                  "enum": [
+                    "network",
+                    "timeout",
+                    "http",
+                    "size",
+                    "json",
+                    "source"
+                  ]
+                },
+                "httpStatus": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 100,
+                  "maximum": 599
+                }
+              }
+            }
+          ]
+        },
+        "consecutiveFailures": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "firstFailureAt": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "Z$"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
