@@ -59,6 +59,10 @@ test('actual CLI bootstraps, retains LKG, validates exact Pages tar and removes 
   const verify=hash=>exec(process.execPath,['ci/catalog/verify-pages.mjs'],{...env,EXPECTED_SNAPSHOT_SHA256:hash});
   success(verify(sha256(firstText)));
   success(exec(process.execPath,['--import',mock,'ci/catalog/verify-live.mjs'],{...env,TEST_PREVIOUS:'valid',EXPECTED_SNAPSHOT_SHA256:sha256(firstText)}));
+  const liveReport=JSON.parse(await readFile(join(repo,'artifacts/catalog/live-verification.json'),'utf8'));
+  assert.equal(liveReport.verified,true);assert.equal(liveReport.attempts.length,1);assert.equal(liveReport.expectedSHA256,sha256(firstText));
+  const badLive=exec(process.execPath,['--import',mock,'ci/catalog/verify-live.mjs'],{...env,TEST_PREVIOUS:'valid',EXPECTED_SNAPSHOT_SHA256:'invalid'});
+  assert.notEqual(badLive.status,0);assert.equal(JSON.parse(await readFile(join(repo,'artifacts/catalog/live-verification.json'),'utf8')).reason,'configuration-error');
   assert.notEqual(verify('0'.repeat(64)).status,0);
   success(cli({CATALOG_BOOTSTRAP:'false',GITHUB_EVENT_NAME:'schedule',TEST_PREVIOUS:'valid',TEST_FAILURE:'ovh'}));
   const next=JSON.parse(await readFile(snapshotFile,'utf8'));assert.equal(next.sources.ovh.status,'retained');assert.equal(next.sources.ovh.fetchedAt,first.sources.ovh.fetchedAt);assert.equal(next.sources.ovh.dataSha256,first.sources.ovh.dataSha256);
@@ -73,4 +77,11 @@ test('actual CLI bootstraps, retains LKG, validates exact Pages tar and removes 
    success(exec('python3',['-c',code,join(repo,'artifacts/catalog/download/artifact.tar'),name,type]));assert.notEqual(verify(sha256(firstText)).status,0,'Unsafe tar must fail');
   }
  }finally{await rm(temp,{recursive:true,force:true,maxRetries:5,retryDelay:100});}
+});
+
+test('public verification diagnostics upload on failure without weakening deployment permissions',()=>{
+ const deployment=workflow.split('\n  deploy:\n')[1];
+ assert.match(deployment,/name: Preserve public verification diagnostics\n        if: always\(\)/);
+ assert.match(deployment,/name: catalog-live-verification/);assert.match(deployment,/path: artifacts\/catalog\/live-verification.json/);assert.match(deployment,/retention-days: 14/);
+ assert.equal((deployment.match(/permissions:/g)||[]).length,1);assert.ok(!/continue-on-error: true|contents: write|secrets\./.test(deployment));
 });

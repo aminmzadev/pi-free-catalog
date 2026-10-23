@@ -109,3 +109,25 @@ Official references:
 - https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows
 - https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages
 - https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments
+
+## Public verification after deployment
+
+The Pages deploy action succeeding and the newly deployed bytes being visible
+from a runner's CDN edge are separate events. The final verifier preserves exact
+file SHA-256, snapshot contract/rules/integrity, producer commit/run and canonical
+byte checks. It makes up to 18 cache-busted GETs with 10-second retry intervals,
+within one 180-second monotonic budget. Each request/body is bounded by the
+smaller of 20 seconds and the remaining overall budget. The deployment job keeps
+its existing 10-minute limit and deployment action timeout; no integrity check is
+weakened, and no redeploy/rebuild happens during verification.
+
+Each attempt logs the stage, HTTP status, expected/received hash, received producer
+identity, elapsed time and an allowlisted set of cache/CDN headers. Full metadata
+bodies, cookies, authorization headers and arbitrary exception payloads are never
+logged. `artifacts/catalog/live-verification.json` is uploaded as the
+`catalog-live-verification` diagnostic artifact on success or failure (14-day
+retention), and is not a runtime endpoint or part of the published catalog.
+A final non-match still fails the job. Its red status does not itself mean the
+deploy action failed or that Pages rolled the published file back. Check the
+recorded attempt stages and producer identity before changing any configuration;
+never reset history or bypass validation to make a delayed deployment green.
