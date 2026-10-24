@@ -1,6 +1,6 @@
-# Central catalog backend (phase 1-3 only)
+# Central catalog backend and client boundary
 
-This backend collects public metadata and deploys a self-contained snapshot to GitHub Pages. **The extension does not consume this endpoint yet.** No extension, inference, routing, thinking, model-fallback or customer refresh behavior is changed. No version bump, npm publication or GitHub Release is part of this work.
+This backend collects public metadata and deploys a self-contained snapshot to GitHub Pages. The Pi extension consumes that endpoint only at startup and explicit `/free-refresh`, with cache-first registration and bounded direct-source recovery. Optional default-OFF pools and pre-activity handoff are described in the README and REFERENCE. These client features do not change backend collection, anonymous access or the three fingerprinted production rule modules. A source push is not a release: GitHub/npm publication requires a separately approved stable release event.
 
 ## Data flow
 
@@ -39,7 +39,7 @@ Hashes detect corruption and cross-job substitution. A hash delivered with a fil
 
 Only the fixed production metadata URLs and this site's fixed previous-snapshot URL are allowed. Requests are GET-only, anonymous, without credentials, with redirects disabled, a 20-second timeout and a 16 MiB decoded upstream body limit. Previous snapshots are bounded at 32 MiB. Source rows are limited to 10,000 (2,000 for each OVH inventory/catalog) before reconciliation to bound cross-record work; legitimate growth past these limits requires explicit review. Failures are not retried aggressively; the next scheduled run can recover. HTTP 429 is retained as a failure, not bypassed through IP rotation or alternate accounts. No inference requests are made.
 
-GitHub Pages serves responses with a CDN cache lifetime (observed `max-age=600`). `Cache-Control: no-cache` alone did not avoid a warm edge returning the prior deployment during real refresh testing. Backend reads of the fixed previous-snapshot endpoint therefore append a freshly generated `catalog_read=<UUID>` query and request `cache: no-store`; the host/path remain fixed, caller-supplied queries are forbidden, and upstream source requests are unchanged. This is CDN metadata freshness handling, not inference rate-limit evasion. Public consumers using the plain URL can still see CDN lag; future extension integration must handle source ages explicitly.
+GitHub Pages serves responses with a CDN cache lifetime (observed `max-age=600`). `Cache-Control: no-cache` alone did not avoid a warm edge returning the prior deployment during real refresh testing. Backend reads of the fixed previous-snapshot endpoint therefore append a freshly generated `catalog_read=<UUID>` query and request `cache: no-store`; the host/path remain fixed, caller-supplied queries are forbidden, and upstream source requests are unchanged. This is CDN metadata freshness handling, not inference rate-limit evasion. Public consumers using the plain URL can still see CDN lag; the Phase A client uses the same controlled cache-busting pattern and explicitly handles source ages.
 
 Before fetching sources, the previous public snapshot must pass full contract, source, integrity, summary and production-rule validation. A corrupt, incompatible or unreachable previous snapshot is a **hard failure**, never permission to reset history. Rule changes require an explicit migration plan; they must not silently erase the old snapshot.
 
@@ -47,7 +47,7 @@ For each failed upstream, copy its complete previous valid payload, original suc
 
 Already-known lifecycle deadlines are applied at the actual new generation time. Keeping an old source does not freeze known retirement dates. Retention is metadata preservation, not a promise of continued inference entitlement or service availability.
 
-If **all seven** sources fail, no replacement snapshot is deployed. If some fail but every source has valid LKG, a validated degraded snapshot may be deployed. There is no arbitrary TTL that pretends old data is new; age is transparent in each source's timestamps. This phase adds no client behavior or cache-expiration policy.
+If **all seven** sources fail, no replacement snapshot is deployed. If some fail but every source has valid LKG, a validated degraded snapshot may be deployed. There is no arbitrary TTL that pretends old data is new; age is transparent in each source's timestamps. These are backend rules; the separate Phase A client uses soft source age for recovery, never as an expiry that disables cached inference.
 
 ## Quality gates
 
@@ -81,7 +81,7 @@ A collector failure removes any stale local deployable output. The upload/deploy
 4. Run **Catalog -> Run workflow -> main**, with `bootstrap: true` and `approve_large_changes: false`.
 5. Bootstrap is accepted **only** if the previous endpoint returns HTTP 404 and **all seven real sources** fetch and validate successfully. No fixture, stale artifact or empty default can seed production. If the previous endpoint already exists, bootstrap is refused.
 6. Independently download the deployed snapshot/schema, validate the snapshot and compare the exact file SHA256 with the workflow output. Confirm the resulting Pages URL.
-7. Leave bootstrap false for all later scheduled/manual runs. Review several real cycles (preferably a day) before planning extension integration.
+7. Leave bootstrap false for all later scheduled/manual runs. Review several real cycles (preferably a day) to assess scheduling stability; one successful scheduled run alone does not establish a 24-hour SLA.
 
 A genuinely lost Pages deployment, a rules/schema migration or a custom-domain move needs an explicit recovery/migration procedure. Do not abuse bootstrap to hide a failed previous-snapshot read.
 
@@ -97,13 +97,13 @@ node ci/lint-workflows.mjs
 
 The tests exercise the existing factual fixtures, not real inference: direct-versus-snapshot parity; complete ID coverage; per-source outages; malformed/HTML/empty/duplicate payloads; HTTP 429/5xx; retained timestamps and recovery; known lifecycle deadlines; large-change review; corrupt/incompatible/absent previous state; response limits/timeouts/URL allowlists; actual CLI behavior in an isolated temporary git repository; cross-job hash checks and unsafe tar rejection; and workflow permissions/triggers.
 
-The normal CI matrix also runs the separate preexisting extension tests and installed-TGZ Pi-loader checks. Backend files are repository-only and excluded by the existing package manifest. The npm package/version, lockfile, runtime source and shipped tests remain unchanged.
+The normal CI matrix also runs the extension tests and clean installed-TGZ Pi-loader checks. Backend transport/collector files remain repository-only and excluded by the existing package manifest. The data-only snapshot contract now lives in `src/snapshot-contract.js`, shared by the shipped client and backend, without runtime imports from `ci/`. The three fingerprinted production modules are unchanged. The source package and matching lockfile declare version 0.1.7. Publication status is determined by the registry, not the presence of this source version.
 
-## Deliberately deferred
+## Release boundary
 
-- Extension consumption of Pages, startup/manual refresh changes and direct-fetch fallback integration.
-- Any model-routing/fallback, thinking or inference transport changes.
-- npm version bumps, GitHub Releases, npm publishing and Trusted Publisher activation deadlines.
+- This local integration does not authorize a remote push, GitHub Release, npm publication or changes to Trusted Publisher settings.
+- A published stable GitHub Release triggers the repository publication workflow; release approval must include that consequence.
+- Client routing remains restricted to reviewed, explicitly selected eligible models. The existing production classification, lifecycle and anonymous-entitlement rules remain unchanged.
 
 Official references:
 - https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows

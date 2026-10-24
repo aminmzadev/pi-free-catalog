@@ -23,6 +23,7 @@ live-proof/
 ovh-live-proof/
 artifacts/
 verification/
+test-results/
 *.log
 *.tgz
 *.zip

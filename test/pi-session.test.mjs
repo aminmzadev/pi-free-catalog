@@ -24,7 +24,7 @@ test('real Pi session: slash <-> native selector, switches, footer and off wire 
   await session.setModel(beam);await session.prompt('/free-thinking max');assert.equal(session.thinkingLevel,'max');
   await session.prompt('17*19?');assert.equal(wires.at(-1).reasoning_effort,'max');
   session.setThinkingLevel('low');await session.prompt('17*19?');assert.equal(wires.at(-1).reasoning_effort,'low');
-  await session.prompt('/free-thinking default');await session.prompt('17*19?');assert.equal(wires.at(-1).reasoning_effort,undefined);assert.match(statuses.get('free-thinking'),/provider default/);
+  await session.prompt('/free-thinking default');await session.prompt('17*19?');assert.equal(wires.at(-1).reasoning_effort,undefined);assert.equal(statuses.get('free-thinking'),undefined);
   session.setThinkingLevel('high');await session.prompt('17*19?');assert.equal(wires.at(-1).reasoning_effort,'high');assert.equal(statuses.get('free-thinking'),undefined);
   await session.prompt('/free-thinking max');await session.setModel(laguna);await session.prompt('/free-thinking instant');assert.equal(session.thinkingLevel,'off');await session.prompt('17*19?');assert.deepEqual(wires.at(-1).reasoning,{enabled:false,effort:'none'});
   session.setThinkingLevel('medium');await session.prompt('17*19?');assert.deepEqual(wires.at(-1).reasoning,{enabled:true,effort:'high'});

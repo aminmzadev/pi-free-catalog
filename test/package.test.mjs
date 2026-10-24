@@ -3,7 +3,7 @@ test('actual npm pack excludes Python bytecode, caches, credentials and node_mod
  const result=spawnSync('npm',['pack','--dry-run','--ignore-scripts','--json'],{cwd:fileURLToPath(new URL('../',import.meta.url)),encoding:'utf8'});assert.equal(result.status,0,result.stderr);
  const parsed=JSON.parse(result.stdout);const packed=Array.isArray(parsed)?parsed[0]:Object.values(parsed)[0];assert.ok(packed&&Array.isArray(packed.files),'npm pack --json shape not recognised');const files=packed.files.map(f=>f.path);assert.ok(files.length>20);
  for(const path of files)assert.ok(!/(?:^|\/)(?:node_modules|__pycache__|\.npmrc|\.env)(?:\/|$)|\.pyc$/.test(path),path);
- for(const path of ['src/index.js','src/sdk.js','src/catalog.js','src/models.js','src/transport.js','src/ovh.js','src/lifecycle.js','scripts/verify-ovh-live.mjs','test/release-six.test.mjs','test/ovh.test.mjs','test/ovh-session.test.mjs','test/fixtures/ovh-models.json.gz','test/fixtures/ovh-catalog.json.gz','test/fixtures/kilo.json.gz'])assert.ok(files.includes(path),path);
+ for(const path of ['src/ovh-pool-editor.js','src/ovh-quota.js','src/ovh-pool-budget.js','THIRD-PARTY-NOTICES.md','scripts/verify-local-loader.mjs','test/local-loader.test.mjs','src/index.js','src/sdk.js','src/catalog.js','src/models.js','src/transport.js','src/ovh.js','src/lifecycle.js','scripts/verify-ovh-live.mjs','test/release-six.test.mjs','test/ovh.test.mjs','test/ovh-session.test.mjs','test/fixtures/ovh-models.json.gz','test/fixtures/ovh-catalog.json.gz','test/fixtures/kilo.json.gz'])assert.ok(files.includes(path),path);
 });
 test('Persian README is removed from source, English README and the published tarball',async()=>{
  const {readFile,access}=await import('node:fs/promises');

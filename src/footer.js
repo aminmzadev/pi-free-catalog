@@ -1,7 +1,7 @@
 import { FooterComponent } from '@earendil-works/pi-coding-agent';
 import { freeModelKey } from './thinking-sync.js';
 
-/** Reuse Pi 1.3's exported renderer, with a local read-only view (never mutate core/provider IDs). */
+/** Reuse Pi's exported renderer, with a local read-only view (never mutate core/provider IDs). */
 export function freeFooter(pi, ctx, tui, footerData) {
   const session = {
     get state() {
@@ -45,7 +45,7 @@ export function freeFooter(pi, ctx, tui, footerData) {
  */
 export function footerController({ pi, getMode }) {
   let owned = null;
-  return (ctx, { claim = false } = {}) => {
+  const update = (ctx, { claim = false } = {}) => {
     if (ctx.mode !== 'tui') return;
     const eligible = getMode() === 'compact' && freeModelKey(ctx.model);
     if (!eligible) {
@@ -68,4 +68,9 @@ export function footerController({ pi, getMode }) {
       };
     });
   };
+  update.release = ctx => {
+    if (owned?.active) ctx?.ui.setFooter(undefined);
+    owned = null;
+  };
+  return update;
 }

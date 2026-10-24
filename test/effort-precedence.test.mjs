@@ -228,7 +228,7 @@ test("saved native mode restores corrected Pi level and subsequent Pi change rel
     reasoning: { enabled: false, effort: "none" },
   });
 });
-test("unmapped enabled toggle is explicitly reported, not falsely synchronized to a Pi effort", () => {
+test("unmapped enabled toggle remains effective without a fictional Pi effort or persistent label", () => {
   const e = entry({ on: { reasoning: { enabled: true } } }),
     key = recordKey("kilo", e.id),
     statuses = new Map();
@@ -247,7 +247,9 @@ test("unmapped enabled toggle is explicitly reported, not falsely synchronized t
   });
   sync.restore(ctx);
   assert.equal(level, "off");
-  assert.match(statuses.get("free-thinking"), /no exact Pi level/);
+  assert.equal(statuses.get("free-thinking"), undefined);
+  assert.equal(piLevelForNative(e, state, "on"), null);
+  assert.deepEqual(selectThinking(e, state, "on"), {reasoning:{enabled:true}});
 });
 test("all Pi map entries are either null or an advertised native route, with no generic on=medium fallback", () => {
   const e = entry({

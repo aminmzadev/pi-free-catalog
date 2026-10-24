@@ -50,3 +50,11 @@ test('leaving a free model releases only an owned slot and never automatically r
  update(x.ctx,{claim:true});assert.ok(active);x.ctx.model={provider:'openai',id:'other'};update(x.ctx);assert.equal(active,undefined);
  x.ctx.model={provider:'free-zen',id:'beam-free'};update(x.ctx);assert.equal(active,undefined);assert.equal(calls,2);
 });
+
+test('shutdown release clears only a still-owned footer, never a replacement',()=>{
+ const x=setup();let active,calls=0;const update=footerController({pi:x.pi,getMode:()=> 'compact'});
+ x.ctx.ui.setFooter=f=>{active?.dispose?.();active=f?.({requestRender(){}},null,x.data);calls++;};
+ update(x.ctx,{claim:true});update.release(x.ctx);assert.equal(active,undefined);assert.equal(calls,2);
+ update(x.ctx,{claim:true});active.dispose();const foreign={render:()=>['foreign']};active=foreign;
+ const count=calls;update.release(x.ctx);assert.equal(active,foreign);assert.equal(calls,count);
+});

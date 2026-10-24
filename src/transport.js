@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { applyThinking, selectThinking } from './models.js';
 
-export const PACKAGE_VERSION = '0.1.6';
+export const PACKAGE_VERSION = '0.1.7';
 import { OVH_BASE } from './ovh.js';
 
 /** Native OpenCode-compatible identifier. One stable identity per Pi session; never quota rotation. */
@@ -41,6 +41,7 @@ export function scopedFetch({
   getFetch = () => globalThis.fetch,
   onResponse,
   onWait,
+  pacing,
 }) {
   return async (input, init = {}) => {
     const url = new URL(
@@ -86,7 +87,11 @@ export function scopedFetch({
       headers.set(name, value);
     headers.set('content-type', 'application/json');
     if (service === 'ovh') {
-      try { await catalog.ovhPacer.wait(model.id, { signal: init.signal ?? (input instanceof Request ? input.signal : undefined), onWait }); }
+      try {
+        const state = { signal: init.signal ?? (input instanceof Request ? input.signal : undefined), onWait };
+        if (pacing) await pacing(state);
+        else await catalog.ovhPacer.wait(model.id, state);
+      }
       finally { onWait?.(0); }
       catalog.assertUsable(service, model.id); // It may have changed during the cancellable wait.
     }

@@ -1,6 +1,6 @@
 {
   "name": "pi-free-catalog",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Live, auditable anonymous Kilo, OpenCode and OVHcloud model catalogs for Pi. No account or name-based free filtering.",
   "type": "module",
   "license": "MIT",
@@ -40,15 +40,23 @@
     "scripts/*.js",
     "scripts/*.py",
     "README.md",
+    "REFERENCE.md",
     "CHANGELOG.md",
-    "LICENSE"
+    "LICENSE",
+    "THIRD-PARTY-NOTICES.md"
   ],
   "scripts": {
     "check": "node scripts/check.mjs",
     "test": "node --test test/*.test.mjs",
     "catalog": "node scripts/catalog.mjs",
     "verify": "npm run check && npm test && npm pack --dry-run --ignore-scripts",
-    "prepublishOnly": "npm run verify"
+    "prepublishOnly": "npm run verify",
+    "verify:local-loader": "node scripts/verify-local-loader.mjs",
+    "test:footer-monkey": "node --test test/footer-monkey.test.mjs",
+    "test:pool-monkey": "node --test test/free-pool-monkey.test.mjs",
+    "verify:general-loader": "node scripts/verify-general-loader.mjs",
+    "test:pool-diagnostics-monkey": "node --test test/free-pool-diagnostics-monkey.test.mjs",
+    "test:pool-continuity-monkey": "node --test test/free-pool-continuity-monkey.test.mjs"
   },
   "publishConfig": {
     "access": "public",

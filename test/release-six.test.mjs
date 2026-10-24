@@ -16,8 +16,8 @@ async function withFactory(fn){
  const configs=new Map(),commands=new Map(),events=new Map(),statuses=new Map(),output=[];let level='low';
  const ctx={hasUI:false,model:{provider:'free-kilo',id:'reflection/beam-free'},ui:{setStatus:(k,v)=>statuses.set(k,v)}};
  const pi={registerProvider:(k,v)=>configs.set(k,v),registerCommand:(k,v)=>commands.set(k,v),on:(k,v)=>events.set(k,v),sendMessage:m=>output.push(m.content),getThinkingLevel:()=>level,setThinkingLevel:v=>{level=v;}};
- process.env.PI_CODING_AGENT_DIR=dir;globalThis.fetch=fetcher();
- try{await extension(pi);await events.get('session_start')({},ctx);await fn({dir,configs,commands,events,statuses,output,ctx,pi});}
+ process.env.PI_CODING_AGENT_DIR=dir;let adapter=fetcher();globalThis.fetch=(...args)=>adapter(...args);
+ try{await extension(pi);await events.get('session_start')({},ctx);await fn({dir,configs,commands,events,statuses,output,ctx,pi,setFetch:value=>adapter=value});}
  finally{globalThis.fetch=original;if(prior===undefined)delete process.env.PI_CODING_AGENT_DIR;else process.env.PI_CODING_AGENT_DIR=prior;await rm(dir,{recursive:true,force:true});}
 }
 
@@ -29,12 +29,20 @@ test('F1: inspect separates auto control, Pi level and exact effective native ch
  await x.commands.get('free-thinking').handler('auto',x.ctx);await x.commands.get('free-thinking').handler('',x.ctx);p=JSON.parse(x.output.at(-1));assert.equal(p.controlMode,'auto');assert.equal(p.effectiveNativeMode,'high');
 }));
 
-test('F2: real footer status uses data-derived chat-only counts and preserves classifier registration',()=>withFactory(async x=>{
- const counts=summary(reconcile(sources()));assert.notEqual(counts.zen.free,counts.zen.freeChat);
- assert.match(x.statuses.get('free-catalog'),new RegExp(`^Free chat: Kilo ${counts.kilo.freeChat} · Zen ${counts.zen.freeChat}`));
+test('F2: persistent chat-only footer counts preserve classifier registration',()=>withFactory(async x=>{
+ const counts=summary(reconcile(sources()));assert.notEqual(counts.zen.free,counts.zen.freeChat);assert.equal(counts.kilo.freeChat,17);assert.equal(counts.zen.freeChat,9);
+ assert.equal(x.statuses.get('free-catalog'),'Free chat: Kilo 17 · Zen 9 · OVH 10');
  assert.equal(x.configs.get('free-zen').models.find(m=>m.id==='jev-1.13-free').type,'classifier');
- const d=structuredClone(fixtures);d.kilo.data.push({id:'new-classifier-not-chat',type:'image',isFree:true});globalThis.fetch=fetcher(d);await x.commands.get('free-refresh').handler('',x.ctx);
- assert.match(x.statuses.get('free-catalog'),new RegExp(`^Free chat: Kilo ${counts.kilo.freeChat} · Zen ${counts.zen.freeChat}`));
+ const d=structuredClone(fixtures);d.kilo.data.push({id:'new-classifier-not-chat',type:'image',isFree:true});x.setFetch(fetcher(d));await x.commands.get('free-refresh').handler('',x.ctx);
+ assert.equal(x.statuses.get('free-catalog'),'Free chat: Kilo 17 · Zen 9 · OVH 10');
+ d.kilo.data.push({...d.kilo.data.find(row=>row.id==='reflection/beam-free'),id:'new-free-chat'});
+ await x.commands.get('free-refresh').handler('',x.ctx);
+ assert.equal(x.statuses.get('free-catalog'),'Free chat: Kilo 18 · Zen 9 · OVH 10');
+ await x.commands.get('free-footer').handler('counts off',x.ctx);
+ d.kilo.data.find(row=>row.id==='new-free-chat').type='embedding';
+ await x.commands.get('free-refresh').handler('',x.ctx);assert.equal(x.statuses.get('free-catalog'),undefined);
+ await x.commands.get('free-footer').handler('counts on',x.ctx);
+ assert.equal(x.statuses.get('free-catalog'),'Free chat: Kilo 17 · Zen 9 · OVH 10');
 }));
 
 test('F3: actual Pi refresh shrinks max to low/high, normalizes auto via public Pi API, then reaches HTTP; explicit removed native override is not silently remapped',async()=>{

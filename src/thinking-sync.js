@@ -66,22 +66,8 @@ export function thinkingSync({
     return mode;
   }
   function status(ctx) {
-    const model = freeModelKey(ctx.model),
-      mode = model ? getSelection(model.service, model.id) : 'auto';
-    let text;
-    if (mode === 'default')
-      text = 'Thinking: provider default (Pi level not applied)';
-    else if (mode !== 'auto') {
-      const entry = catalog.state.entries[model.key];
-      try {
-        if (!entry || piLevelForNative(entry, catalog.state, mode) === null)
-          text = `Native thinking: ${mode} (no exact Pi level)`;
-      } catch {
-        text = `Native thinking: ${mode} unavailable — select a current mode`;
-      }
-    }
-    // Ordinary auto/default-only models need no additional footer status.
-    ctx.ui.setStatus('free-thinking', text);
+    // Pi already displays the active model/thinking. Do not leave duplicate labels behind.
+    ctx.ui.setStatus('free-thinking', undefined);
   }
   function restore(ctx) {
     const model = freeModelKey(ctx.model);

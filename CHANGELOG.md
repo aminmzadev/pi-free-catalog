@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.1.7
+
+### Added
+
+- A validated Pages-first catalog client, local last-known-good continuity and bounded direct-source recovery. Metadata refresh remains limited to startup and explicit `/free-refresh`.
+- A reviewed general Free Pool across Kilo, OpenCode Zen and OVHcloud, with provider-qualified selections, per-model thinking, priority/weighted round robin, finite or continuous visits and read-only previews. New pools default OFF.
+- Independent, default-ON saved footer chat-count controls, responsive review/status screens and bounded context-free activity records that do not enter model context.
+- Bare-folder Pi compatibility loading and the attributed Pi AI budget estimator, with actual bundled-CLI fixture coverage for SDK-absent/present layouts and pool OFF/ON behavior.
+- A Python-generated vector architecture illustration, public CI/catalog/npm badges and portable README installation and command guides.
+
+### Changed
+
+- Automatic Kilo/Zen-only scheduling uses round robin. OVH requests per visit remain 1–2, default 2, and never replace quota or cooldown enforcement.
+- A one-time continuous-mode upgrade for valid old general settings preserves quota, cursor and counters and persists before dispatch. Corrupt storage stays paused; later reviewed finite choices remain respected.
+- Catalog provenance, lifecycle evidence and native thinking settings stay inspectable rather than inferred from names or a single fresh timestamp.
+
+### Fixed and guarded
+
+- Kilo/Zen HTTP 429 cooldowns default to the exact model; only recognized explicit broader-scope evidence applies a broader gate.
+- An eligible pre-activity 429 can hand off once per untried exact provider/model within the same response. Meaningful text/thinking/tool activity ends that opportunity; authentication, network and other HTTP failures do not authorize replay.
+- The optional response-start limit stays disabled by default. Only an owned silent timeout permits its bounded handoff, with no request refunds or completed-tool duplication.
+- Request fit, cancellation, durable pre-wire reservations, primary recovery and independent OVH accounting remain authoritative. All-unavailable continuous pools stop with a bounded report rather than silently disabling themselves.
+- Footer controls coexist with other extensions; only owned transient indicators are cleaned up. No primary model is changed without separate consent.
+
+### Verification and limitations
+
+- Native Pi/SDK/tool sessions, clean installed packages, bundled loaders and seeded reproducible adversarial tests cover the preserved safety boundaries on Node 22.19.0 and 26.0.0. CI uses simulated upstream HTTP; it is not universal live-model or Android certification.
+
 ## 0.1.6 — 2026-10-22
 
 - Distinguish thinking control mode (auto / Follow Pi, provider default, explicit override) from current Pi level, effective native mode, and exact payload parameters. Preserve the legacy selected field and native two-way synchronization.

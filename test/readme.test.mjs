@@ -25,9 +25,13 @@ test('public README guard detects inline, reference and HTML link regressions',(
  assert.ok(targets.every(t=>!isPortablePublicLink(t)));
  assert.equal(isPortablePublicLink('https://pi.dev/docs/latest/packages'),true);
 });
-test('versioned README installation example matches the release manifest and has no stale candidate banner',async()=>{
+test('README installation examples match the package name and any pinned version matches the manifest',async()=>{
  const pkg=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
  const readme=await readFile(new URL('../README.md',import.meta.url),'utf8');
- assert.ok(readme.includes(`pi install npm:${pkg.name}@${pkg.version}`));
+ assert.ok(readme.includes(`pi install npm:${pkg.name}`));
+ for(const match of readme.matchAll(/pi install npm:([a-z0-9-]+)@([^\s`]+)/g)){
+  assert.equal(match[1],pkg.name);
+  assert.equal(match[2],pkg.version);
+ }
  assert.doesNotMatch(readme,/unreleased candidate|0\.1\.3 candidate|pi install npm:pi-free-catalog@0\.1\.2/i);
 });

@@ -87,7 +87,7 @@ async function environment(run, { selection } = {}) {
   }
 }
 
-test('exactly five stable commands use concise plain-English descriptions', async () =>
+test('seven stable commands, including the general pool and legacy OVH entry, use concise plain-English descriptions', async () =>
   environment(async (x) => {
     assert.deepEqual([...x.commands.keys()], Object.keys(COMMANDS));
     for (const [name, command] of x.commands) {
@@ -142,8 +142,9 @@ test('footer completion is useful and does not execute the command', async () =>
         .get('free-footer')
         .getArgumentCompletions('c')
         .map((x) => x.value),
-      ['compact'],
+      ['compact', 'counts on', 'counts off'],
     );
+    assert.deepEqual(x.commands.get('free-footer').getArgumentCompletions('counts ').map(item => item.value), ['counts on', 'counts off']);
     assert.equal(
       x.commands.get('free-footer').getArgumentCompletions('invalid'),
       null,
@@ -216,3 +217,16 @@ test('thinking write failure is explicit, keeps the chosen runtime mode, and dra
     await x.commands.get('free-thinking').handler('', x.ctx);
     assert.equal(JSON.parse(x.output.at(-1)).selected, 'high');
   }));
+
+
+test('OVH command exposes only cached status/help completion and unknown arguments do not mutate',async()=>
+ environment(async x=>{
+  const command=x.commands.get('free-ovh-pool'),fetches=x.fetches;
+  assert.deepEqual(command.getArgumentCompletions('').map(x=>x.value),['--help','status']);
+  assert.equal(command.getArgumentCompletions('unexpected '),null);
+  for(const action of ['unexpected','--bad-option','unknown extra']){
+   await command.handler(action,x.ctx);assert.match(x.output.at(-1),/Use \/free-ovh-pool/);assert.doesNotMatch(x.output.at(-1),/migration|retired/i);
+  }
+  await command.handler('',x.ctx);assert.match(x.output.at(-1),/OVH pool:/);
+  assert.equal(x.fetches,fetches);await assert.rejects(readFile(join(x.dir,'free-catalog/ovh-pool.json')));
+ }));

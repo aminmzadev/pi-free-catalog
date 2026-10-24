@@ -18,13 +18,13 @@ test('collector has read-only permission and no npm install, credentials or infe
  assert.match(collector,/permissions:\s+contents: read/);assert.ok(!/id-token:|pages: write|contents: write|secrets\.|npm (?:ci|install|publish)|NODE_AUTH_TOKEN|NPM_TOKEN/.test(collector));
  assert.match(collector,/node --test ci\/test\/catalog\*\.test\.mjs/);assert.match(collector,/node ci\/catalog\/collect\.mjs/);
 });
-test('one concurrency lock covers build and deploy; both jobs guard exact repository and main',()=>{
+test('one concurrency lock covers build, deploy and cleanup; all jobs guard exact repository and main',()=>{
  assert.match(workflow,/concurrency:\s+group: catalog-pages\s+cancel-in-progress: false/);
- assert.equal((workflow.match(/if: github.repository == 'aminmzadev\/pi-free-catalog' && github.ref == 'refs\/heads\/main'/g)||[]).length,2);
- assert.equal((workflow.match(/ref: \$\{\{ github.sha \}\}/g)||[]).length,2);
+ assert.equal((workflow.match(/if: github.repository == 'aminmzadev\/pi-free-catalog' && github.ref == 'refs\/heads\/main'/g)||[]).length,3);
+ assert.equal((workflow.match(/ref: \$\{\{ github.sha \}\}/g)||[]).length,3);
 });
 test('Pages deployment verifies artifact ID, digest and independent build hash before deploying',()=>{
- const deployment=workflow.split('\n  deploy:\n')[1];
+ const deployment=workflow.split('\n  deploy:\n')[1].split('\n  cleanup:\n')[0];
  assert.match(deployment,/pages: write/);assert.match(deployment,/id-token: write/);assert.match(deployment,/name: github-pages/);assert.ok(!deployment.includes('npm-publish'));
  assert.match(deployment,/artifact-ids: \$\{\{ needs.collect.outputs.artifact-id \}\}/);assert.match(deployment,/digest-mismatch: error/);assert.match(deployment,/EXPECTED_SNAPSHOT_SHA256: \$\{\{ needs.collect.outputs.snapshot-sha256 \}\}/);
  assert.ok(deployment.indexOf('node ci/catalog/verify-pages.mjs')<deployment.indexOf('uses: actions/deploy-pages@'));assert.ok(!deployment.includes('node ci/catalog/collect.mjs'));assert.ok(deployment.indexOf('node ci/catalog/verify-live.mjs')>deployment.indexOf('uses: actions/deploy-pages@'));
@@ -41,7 +41,7 @@ test('actual CLI bootstraps, retains LKG, validates exact Pages tar and removes 
  const exec=(command,args,env={},cwd=repo)=>spawnSync(command,args,{cwd,encoding:'utf8',maxBuffer:64*1024*1024,env:{...process.env,...env}});
  const success=result=>assert.equal(result.status,0,result.stderr+'\n'+result.stdout);
  try{
-  const names=['src/catalog.js','src/lifecycle.js','src/ovh.js','ci/lib.mjs','ci/catalog/core.mjs','ci/catalog/collect.mjs','ci/catalog/verify-pages.mjs','ci/catalog/verify-live.mjs','ci/catalog/schema-v1.json'];
+  const names=['src/snapshot-contract.js','src/catalog.js','src/lifecycle.js','src/ovh.js','ci/lib.mjs','ci/catalog/core.mjs','ci/catalog/collect.mjs','ci/catalog/verify-pages.mjs','ci/catalog/verify-live.mjs','ci/catalog/schema-v1.json'];
   for(const name of names){await mkdir(join(repo,name.substring(0,name.lastIndexOf('/'))),{recursive:true});await copyFile(new URL('../../'+name,import.meta.url),join(repo,name));}
   await writeFile(join(repo,'package.json'),'{"type":"module","private":true}');await writeFile(join(repo,'.gitignore'),'artifacts/\n');
   success(exec('git',['init','-q','-b','main']));success(exec('git',['add','.']));success(exec('git',['-c','user.name=Catalog Test','-c','user.email=ci@example.invalid','commit','-qm','Offline fixture test repository']));
@@ -80,7 +80,7 @@ test('actual CLI bootstraps, retains LKG, validates exact Pages tar and removes 
 });
 
 test('public verification diagnostics upload on failure without weakening deployment permissions',()=>{
- const deployment=workflow.split('\n  deploy:\n')[1];
+ const deployment=workflow.split('\n  deploy:\n')[1].split('\n  cleanup:\n')[0];
  assert.match(deployment,/name: Preserve public verification diagnostics\n        if: always\(\)/);
  assert.match(deployment,/name: catalog-live-verification/);assert.match(deployment,/path: artifacts\/catalog\/live-verification.json/);assert.match(deployment,/retention-days: 14/);
  assert.equal((deployment.match(/permissions:/g)||[]).length,1);assert.ok(!/continue-on-error: true|contents: write|secrets\./.test(deployment));

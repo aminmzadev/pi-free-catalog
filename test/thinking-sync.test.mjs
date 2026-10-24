@@ -29,11 +29,11 @@ test('Pi -> native removes stale override immediately and affects only current f
 test('model-switch preliminary thinking event cannot erase target preference',async()=>{
  const x=setup();x.sync.restore(x.ctx);x.ctx.model={provider:'free-kilo',id:'reflection/beam-free'};x.prefs[x.key()]='max';await x.sync.selected({level:'low',previousLevel:'medium'},x.ctx);assert.equal(x.prefs[x.key()],'max');x.sync.restore(x.ctx);assert.equal(x.pi.getThinkingLevel(),'max');
 });
-test('non-free models are unaffected; default override and default-only controls are visibly labelled',async()=>{
- const x=setup();x.prefs[x.key()]='default';x.sync.restore(x.ctx);assert.match(x.statuses.get('free-thinking'),/provider default/);x.pi.setThinkingLevel('low');assert.equal(x.prefs[x.key()],'auto');assert.equal(x.statuses.get('free-thinking'),undefined);
+test('non-free models are unaffected; default override does not leave persistent labels',async()=>{
+ const x=setup();x.prefs[x.key()]='default';x.sync.restore(x.ctx);assert.equal(x.statuses.get('free-thinking'),undefined);x.pi.setThinkingLevel('low');assert.equal(x.prefs[x.key()],'auto');assert.equal(x.statuses.get('free-thinking'),undefined);
  x.ctx.model={provider:'anthropic',id:'anything'};await x.sync.selected({level:'high',previousLevel:'low'},x.ctx);x.sync.restore(x.ctx);assert.equal(x.statuses.get('free-thinking'),undefined);assert.equal(x.saves,1);
 });
-test('unmapped future native mode remains usable and explicitly labelled',()=>{
+test('unmapped future native mode remains usable without a persistent label',()=>{
  const x=setup();const e=st.entries[x.key()];e.metadata.reasoning_options.push({type:'effort',values:['future-effort']});
- try{x.prefs[x.key()]='future-effort';x.sync.restore(x.ctx);assert.equal(x.pi.getThinkingLevel(),'medium');assert.match(x.statuses.get('free-thinking'),/no exact Pi level/);}finally{e.metadata.reasoning_options.pop();}
+ try{x.prefs[x.key()]='future-effort';x.sync.restore(x.ctx);assert.equal(x.pi.getThinkingLevel(),'medium');assert.equal(x.statuses.get('free-thinking'),undefined);}finally{e.metadata.reasoning_options.pop();}
 });
