@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
-import { pruneDeployments, validateContext, ownedRecord, statusOwner, githubApi, publicVerifier, PRUNE_POLICY } from '../catalog/prune-deployments.mjs';
+import { pruneDeployments, validateContext, ownedRecord, statusOwner, githubApi, publicVerifier, PRUNE_POLICY, PRUNE_PUBLIC_POLICY } from '../catalog/prune-deployments.mjs';
 import { snapshotFixture } from '../../test/snapshot-helper.mjs';
 import { canonical, sha256, rulesHash, seal } from '../catalog/core.mjs';
 
@@ -181,13 +181,14 @@ for (const status of [301, 403, 404, 422, 429, 500]) test('API HTTP ' + status +
 test('public verifier checks actual snapshot hash and contract without forwarding API credentials', async () => {
  const snapshot = await snapshotFixture(); const bytes = canonical(snapshot) + '\n'; const expectedRules = await rulesHash();
  const c = { ...context, commit: snapshot.producer.commit, runId: snapshot.producer.runId, expected: sha256(bytes) }; let requests = 0;
- const verify = publicVerifier({ expectedRules, fetcher: async (url, init) => {
+ const once = { attempts: 1, intervalMs: 1, budgetMs: 10000, requestTimeoutMs: 10000 };
+ const verify = publicVerifier({ expectedRules, policy: once, fetcher: async (url, init) => {
   requests++; assert.equal(new URL(url).origin + new URL(url).pathname, 'https://aminmzadev.github.io/pi-free-catalog/catalog/v1/latest.json');
   assert.equal(init.redirect, 'error'); assert.equal(init.headers.authorization, undefined); return new Response(bytes);
  } });
  assert.equal(await verify(c), true); await assert.rejects(verify({ ...c, expected: '0'.repeat(64) })); await assert.rejects(verify({ ...c, runId: '999' })); assert.equal(requests, 3);
  const corrupt = canonical(seal({ ...snapshot, rulesHash: '0'.repeat(64) })) + '\n';
- await assert.rejects(publicVerifier({ expectedRules, fetcher: async () => new Response(corrupt) })({ ...c, expected: sha256(corrupt) }));
+ await assert.rejects(publicVerifier({ expectedRules, policy: once, fetcher: async () => new Response(corrupt) })({ ...c, expected: sha256(corrupt) }));
 });
 
 test('production CLI rejects local apply without Actions and defaults to no writes', async () => {
@@ -217,4 +218,49 @@ test('59 superseded deployments fit below the repository job-token hourly API bu
  assert.ok(h.state.calls.length < 975, 'Combined dry-run and apply must leave repository job-token rate-limit headroom');
  assert.equal(h.state.writes.length, 118); assert.equal(h.state.reports[0].before.length, 60);
  assert.deepEqual(h.state.reports[0].before[0], h.state.current);
+});
+
+
+test('retention public-read retry policy has finite attempt, request and elapsed limits', () => {
+ assert.deepEqual(PRUNE_PUBLIC_POLICY, { attempts: 12, intervalMs: 5000, budgetMs: 60000, requestTimeoutMs: 5000 });
+});
+
+async function liveReadHarness({ staleForever = false, concurrent = false, budgetMs = PRUNE_POLICY.budgetMs } = {}) {
+ const h = harness({ policy: { ...PRUNE_POLICY, budgetMs } });
+ const raw = await snapshotFixture();
+ const current = seal({ ...raw, producer: { ...raw.producer, commit: context.commit, runId: context.runId } });
+ const stale = seal({ ...current, producer: { ...current.producer, runId: '999' } });
+ const bytes = canonical(current) + '\n', oldBytes = canonical(stale) + '\n';
+ let clock = 0, reads = 0; const observations = [];
+ const now = () => clock, sleep = async ms => { clock += ms; };
+ const verify = publicVerifier({ expectedRules: await rulesHash(), now, sleep, onObservation: r => observations.push(r), fetcher: async (_url, init) => {
+  assert.equal(init.method, 'GET'); reads++;
+  if (reads <= 2) assert.deepEqual(h.state.writes, []);
+  if (concurrent && reads === 2) h.state.records.unshift({ ...h.state.current, id: 4000 });
+  return new Response(staleForever || reads <= 2 ? oldBytes : bytes);
+ } });
+ const result = await h.execute({ context: { ...context, expected: sha256(bytes) }, now, sleep, verifyPublic: verify });
+ return { h, result, observations, reads, elapsed: clock };
+}
+
+test('real public verifier recovers from stale cache before allowing any fixture mutation', async () => {
+ const { h, result, observations } = await liveReadHarness();
+ assert.equal(result.succeeded, true); assert.deepEqual(h.state.writes.map(w => w.method), ['POST', 'DELETE']);
+ assert.equal(observations[0].attempts.length, 3); assert.ok(observations.every(o => o.verified));
+});
+
+test('real public verifier with persistently stale cache permits no fixture mutation', async () => {
+ const { h, result, reads } = await liveReadHarness({ staleForever: true });
+ assert.equal(result.reason, 'public-snapshot-unverified'); assert.equal(reads, 12); assert.deepEqual(h.state.writes, []);
+});
+
+test('new deployment appearing during public-read retries still blocks every fixture write', async () => {
+ const { h, result } = await liveReadHarness({ concurrent: true });
+ assert.equal(result.reason, 'newer-or-changed-deployment'); assert.deepEqual(h.state.writes, []);
+});
+
+test('public reads cannot exceed remaining overall retention budget or permit fixture writes', async () => {
+ const { h, result, elapsed, reads } = await liveReadHarness({ staleForever: true, budgetMs: 6000 });
+ assert.equal(result.reason, 'public-snapshot-unverified'); assert.equal(elapsed, 6000); assert.equal(reads, 2);
+ assert.deepEqual(h.state.writes, []);
 });

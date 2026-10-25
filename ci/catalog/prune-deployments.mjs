@@ -4,13 +4,15 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { boundedBody } from '../lib.mjs';
-import { readJSON, PREVIOUS_URL, MAX_SNAPSHOT_BYTES, validateSnapshot, rulesHash } from './core.mjs';
+import { rulesHash } from './core.mjs';
+import { verifyPublicSnapshot } from './verify-live.mjs';
 
 const REPO = 'aminmzadev/pi-free-catalog';
 const API = `https://api.github.com/repos/${REPO}`;
 const ENVIRONMENT = 'github-pages';
 const VERIFY_STEP = 'Verify public Pages bytes and snapshot after bounded propagation wait';
 export const PRUNE_POLICY = Object.freeze({ maxPages: 10, pageSize: 100, maxDeletes: 100, budgetMs: 480000, requestTimeoutMs: 10000, mutationIntervalMs: 1100 });
+export const PRUNE_PUBLIC_POLICY = Object.freeze({ attempts: 12, intervalMs: 5000, budgetMs: 60000, requestTimeoutMs: 5000 });
 const id = x => /^(?:[1-9][0-9]{0,15})$/.test(String(x)) && Number.isSafeInteger(Number(x));
 const sha = x => typeof x === 'string' && /^[a-f0-9]{40}$/.test(x);
 const terminal = new Set(['success', 'failure', 'error', 'inactive']);
@@ -51,6 +53,12 @@ export async function pruneDeployments({ context, api, verifyPublic, apply = fal
  const start = now(); let lastMutation = -Infinity;
  const persist = () => onReport(structuredClone(report));
  const budget = () => requireSafe(now() - start < policy.budgetMs, 'budget-exhausted');
+ // Read retries must fit the existing overall retention deadline, including checks before writes.
+ const checkPublic = async () => {
+  budget();
+  const verified = await verifyPublic(context, { budgetMs: Math.max(1, Math.floor(policy.budgetMs - (now() - start))) });
+  budget(); return verified;
+ };
  const call = async (path, method = 'GET', body) => { budget(); const result = await api(path, { method, body }); budget(); return result; };
  const status = async d => {
   const rows = await call(`/deployments/${d.id}/statuses?per_page=1`);
@@ -75,7 +83,7 @@ export async function pruneDeployments({ context, api, verifyPublic, apply = fal
   // List responses contain full deployment records; the newest record is independently checked above.
   const s = await status(current); const owner = statusOwner(s);
   requireSafe(s?.state === 'success' && owner?.runId === String(context.runId) && owner.jobId === String(report.jobId), 'current-status-changed');
-  if (publicCheck) { requireSafe(await verifyPublic(context), 'public-snapshot-changed'); budget(); }
+  if (publicCheck) { requireSafe(await checkPublic(), 'public-snapshot-changed'); budget(); }
  };
  const mutate = async (path, method, body, beforeWrite) => {
   const wait = Math.max(0, policy.mutationIntervalMs - (now() - lastMutation));
@@ -102,7 +110,7 @@ export async function pruneDeployments({ context, api, verifyPublic, apply = fal
   requireSafe(id(job.id) && String(job.run_id) === String(context.runId) && job.head_sha === context.commit && job.status === 'completed'
    && job.conclusion === 'success' && job.steps?.some(s => s.name === VERIFY_STEP && s.status === 'completed' && s.conclusion === 'success'), 'deploy-not-verified');
   report.jobId = job.id;
-  report.stage = 'public-snapshot'; requireSafe(await verifyPublic(context), 'public-snapshot-unverified'); budget();
+  report.stage = 'public-snapshot'; requireSafe(await checkPublic(), 'public-snapshot-unverified'); budget();
   report.stage = 'inventory';
   const inventory = await list();
   report.before = structuredClone(inventory);
@@ -141,7 +149,7 @@ export async function pruneDeployments({ context, api, verifyPublic, apply = fal
   if (!apply) { report.succeeded = true; report.reason = 'dry-run-no-writes'; report.stage = 'complete'; await persist(); return report; }
   report.stage = 'pruning';
   for (const candidate of report.candidates) {
-   requireSafe(await verifyPublic(context), 'public-snapshot-changed'); budget();
+   requireSafe(await checkPublic(), 'public-snapshot-changed'); budget();
    const original = inventory.find(d => d.id === candidate.id);
    // Each mutation below rechecks the current record and full candidate identity after throttling.
    // The plan state selects the operation; candidateGuard freshly checks identity/status before every write.
@@ -191,12 +199,18 @@ export function githubApi({ token, fetcher = globalThis.fetch, timeoutMs = PRUNE
  };
 }
 
-export function publicVerifier({ expectedRules, fetcher = globalThis.fetch } = {}) {
- return async c => {
-  // This request has no GitHub authorization header and can only reach the fixed public snapshot URL.
-  const { data, bodySha256 } = await readJSON(PREVIOUS_URL, { cacheBust: true, maxBytes: MAX_SNAPSHOT_BYTES, timeoutMs: PRUNE_POLICY.requestTimeoutMs, fetcher });
-  const snapshot = validateSnapshot(data, { expectedRules });
-  requireSafe(bodySha256 === c.expected && snapshot.producer.commit === c.commit && snapshot.producer.runId === String(c.runId), 'public-producer-or-hash');
+export function publicVerifier({ expectedRules, fetcher = globalThis.fetch, now = () => performance.now(), sleep = delay,
+ policy = PRUNE_PUBLIC_POLICY, onObservation = async () => {} } = {}) {
+ return async (c, { budgetMs = policy.budgetMs } = {}) => {
+  // Only unauthenticated reads of the fixed Pages endpoint are retried. GitHub writes never are.
+  // Reuse the deploy verifier: every successful attempt must match exact bytes, contract,
+  // canonical representation and commit/run identity; never accept an older valid snapshot.
+  requireSafe(Number.isFinite(budgetMs) && budgetMs > 0, 'budget-exhausted');
+  const observation = await verifyPublicSnapshot({ expected: c.expected, commit: c.commit, runId: String(c.runId),
+   expectedRules, fetcher, now, sleep, log: () => {},
+   policy: { ...policy, budgetMs: Math.min(policy.budgetMs, Math.floor(budgetMs)) } });
+  await onObservation(observation);
+  requireSafe(observation.verified, 'public-snapshot-unverified');
   return true;
  };
 }
@@ -205,7 +219,7 @@ async function main() {
  const args = process.argv.slice(2); const apply = args.length === 1 && args[0] === '--apply';
  const output = 'artifacts/catalog/deployment-retention.json';
  await mkdir('artifacts/catalog', { recursive: true });
- let report;
+ let report; const publicChecks = [];
  try {
   requireSafe(args.length <= 1 && (!args.length || ['--apply', '--dry-run'].includes(args[0])), 'cli-arguments');
   requireSafe(!apply || process.env.GITHUB_ACTIONS === 'true', 'apply-requires-actions');
@@ -213,9 +227,10 @@ async function main() {
    runId: process.env.GITHUB_RUN_ID, attempt: process.env.GITHUB_RUN_ATTEMPT, event: process.env.GITHUB_EVENT_NAME, expected: process.env.EXPECTED_SNAPSHOT_SHA256 };
   validateContext(context);
   const api = githubApi({ token: process.env.GH_DEPLOYMENTS_TOKEN });
-  report = await pruneDeployments({ context, api, apply, verifyPublic: publicVerifier({ expectedRules: await rulesHash() }),
-   onReport: r => writeFile(output, JSON.stringify(r, null, 2) + '\n') });
+  report = await pruneDeployments({ context, api, apply, verifyPublic: publicVerifier({ expectedRules: await rulesHash(), onObservation: r => { publicChecks.push(r); } }),
+   onReport: r => writeFile(output, JSON.stringify({ ...r, publicChecks }, null, 2) + '\n') });
  } catch (error) { report = { succeeded: false, reason: error instanceof SafetyError ? error.code : 'configuration-error', mode: apply ? 'apply' : 'dry-run' }; }
+ report.publicChecks = publicChecks;
  await writeFile(output, JSON.stringify(report, null, 2) + '\n');
  console.log(`Pages deployment retention: ${report.reason}; protected=${report.protectedId ?? 'none'}; deleted=${report.actions?.filter(a => a.stage === 'deleted').length ?? 0}; retained=${report.remaining?.length ?? 0}.`);
  if (!report.succeeded) process.exitCode = 1;
