@@ -10,7 +10,7 @@ const repository = 'aminmzadev/pi-free-catalog';
 const context = { repository, ref: 'refs/heads/main', commit: 'a'.repeat(40), runId: '1000', attempt: '1', event: 'schedule', expected: 'b'.repeat(64) };
 const link = (run, job) => `https://github.com/${repository}/actions/runs/${run}/job/${job}`;
 const run = (runId, commit, extra = {}) => ({ id: Number(runId), head_sha: commit, head_branch: 'main', repository: { full_name: repository }, head_repository: { full_name: repository }, path: '.github/workflows/catalog.yml', event: 'schedule', run_attempt: 1, status: 'completed', ...extra });
-const job = (runId, jobId, commit, extra = {}) => ({ id: Number(jobId), run_id: Number(runId), head_sha: commit, name: 'deploy', status: 'completed', conclusion: 'success', steps: [{ name: 'Verify public Pages bytes and snapshot after bounded propagation wait', status: 'completed', conclusion: 'success' }], ...extra });
+const job = (runId, jobId, commit, extra = {}) => ({ id: Number(jobId), run_id: Number(runId), head_sha: commit, name: 'deploy', status: 'completed', conclusion: 'success', steps: [{ name: 'Verify run-specific public deployment', status: 'completed', conclusion: 'success' }, { name: 'Verify public Pages bytes and snapshot after bounded propagation wait', status: 'completed', conclusion: 'success' }], ...extra });
 const record = (recordId, commit, at, extra = {}) => ({ id: recordId, sha: commit, created_at: at, task: 'deploy', environment: 'github-pages', original_environment: 'github-pages', ref: 'main', performed_via_github_app: { slug: 'github-actions', id: 15368 }, ...extra });
 
 function harness({ records, hook, publicHook, policy } = {}) {
@@ -251,7 +251,7 @@ test('real public verifier recovers from stale cache before allowing any fixture
 
 test('real public verifier with persistently stale cache permits no fixture mutation', async () => {
  const { h, result, reads } = await liveReadHarness({ staleForever: true });
- assert.equal(result.reason, 'public-snapshot-unverified'); assert.equal(reads, 12); assert.deepEqual(h.state.writes, []);
+ assert.equal(result.reason, 'latest-freshness-deferred'); assert.equal(result.deferred,true); assert.equal(reads, 12); assert.deepEqual(h.state.writes, []);
 });
 
 test('new deployment appearing during public-read retries still blocks every fixture write', async () => {
@@ -261,6 +261,12 @@ test('new deployment appearing during public-read retries still blocks every fix
 
 test('public reads cannot exceed remaining overall retention budget or permit fixture writes', async () => {
  const { h, result, elapsed, reads } = await liveReadHarness({ staleForever: true, budgetMs: 6000 });
- assert.equal(result.reason, 'public-snapshot-unverified'); assert.equal(elapsed, 6000); assert.equal(reads, 2);
+ assert.equal(result.reason, 'latest-freshness-deferred'); assert.equal(result.deferred,true); assert.equal(elapsed, 6000); assert.equal(reads, 2);
  assert.deepEqual(h.state.writes, []);
+});
+
+
+test('retention refuses missing run-specific deployment verification evidence', async () => {
+ const h=harness();h.state.jobs[5000].steps=h.state.jobs[5000].steps.filter(s=>s.name!=='Verify run-specific public deployment');
+ const r=await h.execute();assert.equal(r.reason,'deploy-not-verified');assert.deepEqual(h.state.writes,[]);
 });

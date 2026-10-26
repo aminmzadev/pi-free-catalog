@@ -75,7 +75,9 @@ jobs:
     needs: collect
     if: github.repository == 'aminmzadev/pi-free-catalog' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
+    outputs:
+      latest-verified: ${{ steps.freshness.outputs.latest_verified }}
     permissions:
       contents: read
       pages: write
@@ -108,22 +110,29 @@ jobs:
         with:
           artifact_name: github-pages
           timeout: 300000
-      - name: Verify public Pages bytes and snapshot after bounded propagation wait
+      - name: Verify run-specific public deployment
         env:
           EXPECTED_SNAPSHOT_SHA256: ${{ needs.collect.outputs.snapshot-sha256 }}
-        run: node ci/catalog/verify-live.mjs
+        run: node ci/catalog/verify-live.mjs --deployment
+      - name: Verify public Pages bytes and snapshot after bounded propagation wait
+        id: freshness
+        env:
+          EXPECTED_SNAPSHOT_SHA256: ${{ needs.collect.outputs.snapshot-sha256 }}
+        run: node ci/catalog/verify-live.mjs --freshness
       - name: Preserve public verification diagnostics
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: catalog-live-verification
-          path: artifacts/catalog/live-verification.json
+          path: |
+            artifacts/catalog/deployment-verification.json
+            artifacts/catalog/freshness-verification.json
           if-no-files-found: warn
           retention-days: 14
 
   cleanup:
     needs: [collect, deploy]
-    if: github.repository == 'aminmzadev/pi-free-catalog' && github.ref == 'refs/heads/main' && needs.deploy.result == 'success'
+    if: github.repository == 'aminmzadev/pi-free-catalog' && github.ref == 'refs/heads/main' && needs.deploy.result == 'success' && needs.deploy.outputs.latest-verified == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -140,6 +149,7 @@ jobs:
           node-version: '26.0.0'
           package-manager-cache: false
       - name: Preview retention after successful deployment and public verification
+        id: retention_preview
         env:
           GH_DEPLOYMENTS_TOKEN: ${{ github.token }}
           EXPECTED_SNAPSHOT_SHA256: ${{ needs.collect.outputs.snapshot-sha256 }}
@@ -152,6 +162,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - name: Keep the verified live Pages deployment and prune superseded records
+        if: steps.retention_preview.outputs.cleanup_ready == 'true'
         env:
           GH_DEPLOYMENTS_TOKEN: ${{ github.token }}
           EXPECTED_SNAPSHOT_SHA256: ${{ needs.collect.outputs.snapshot-sha256 }}

@@ -1,3 +1,4 @@
+import { deploymentURL } from './deployment-path.mjs';
 // Backend transport/collector. Contract semantics are shared with the shipped client.
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -13,6 +14,12 @@ export async function readJSON(url, { fetcher = globalThis.fetch, maxBytes = MAX
   assert.ok(!cacheBust || url === PREVIOUS_URL, 'Cache busting is limited to the fixed Pages endpoint');
   // Cache-Control alone does not evict an already-warm GitHub Pages CDN entry.
   // Only this backend-generated UUID query is permitted; callers cannot supply a URL/query.
+  return readAllowedJSON(url, {fetcher,maxBytes,timeoutMs,cacheBust});
+}
+export async function readDeploymentJSON({ runId, expected, fetcher = globalThis.fetch, timeoutMs = 20000 } = {}) {
+  return readAllowedJSON(deploymentURL(runId,expected), {fetcher,maxBytes:MAX_SNAPSHOT_BYTES,timeoutMs,cacheBust:true});
+}
+async function readAllowedJSON(url, {fetcher,maxBytes,timeoutMs,cacheBust}) {
   const requestURL = cacheBust ? url + '?catalog_read=' + randomUUID() : url;
   const signal = AbortSignal.timeout(timeoutMs);
   let response;

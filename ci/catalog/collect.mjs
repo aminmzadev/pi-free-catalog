@@ -1,3 +1,4 @@
+import { deploymentPath, deploymentURL } from './deployment-path.mjs';
 import assert from 'node:assert/strict';
 import { mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { run, outputs } from '../lib.mjs';
@@ -21,10 +22,14 @@ if (process.env.GITHUB_ACTIONS === 'true') {
   const snapshot=await collect({previous,expectedRules,allowLargeChanges,producer:{repository:REPOSITORY,workflow:'catalog.yml',commit:sha,runId:process.env.GITHUB_RUN_ID || null}});
   const text=canonical(snapshot)+'\n';
   const site='artifacts/catalog/site';await mkdir(site+'/catalog/v1',{recursive:true});
+  // Publish only this run proof. Future deployments may remove old proof URLs, never overwrite their content.
+  const uniquePath=deploymentPath(snapshot.producer.runId,sha256(text));
+  await mkdir(site+'/'+uniquePath.slice(0,uniquePath.lastIndexOf('/')),{recursive:true});
+  await writeFile(site+'/'+uniquePath,text);
   await writeFile(site+'/catalog/v1/latest.json',text);
   await writeFile(site+'/catalog/v1/schema.json',await readFile(new URL('./schema-v1.json',import.meta.url)));
   await writeFile(site+'/index.html','<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Pi Free Catalog</title><h1>Pi Free Catalog</h1><p>Public model metadata. This site does not proxy inference.</p><p><a href="catalog/v1/latest.json">Version 1 snapshot</a> | <a href="catalog/v1/schema.json">JSON Schema</a></p></html>\n');
-  await writeFile('artifacts/catalog/report.json',JSON.stringify({generatedAt:snapshot.generatedAt,producer:snapshot.producer,quality:snapshot.quality,summary:snapshot.summary,snapshotSHA256:sha256(text),sources:Object.fromEntries(Object.entries(snapshot.sources).map(([name,s])=>[name,{status:s.status,fetchedAt:s.fetchedAt,attemptedAt:s.attemptedAt,rowCount:s.rowCount,failure:s.failure}]))},null,2)+'\n');
+  await writeFile('artifacts/catalog/report.json',JSON.stringify({generatedAt:snapshot.generatedAt,producer:snapshot.producer,quality:snapshot.quality,summary:snapshot.summary,snapshotSHA256:sha256(text),deploymentURL:deploymentURL(snapshot.producer.runId,sha256(text)),sources:Object.fromEntries(Object.entries(snapshot.sources).map(([name,s])=>[name,{status:s.status,fetchedAt:s.fetchedAt,attemptedAt:s.attemptedAt,rowCount:s.rowCount,failure:s.failure}]))},null,2)+'\n');
   await outputs({ snapshot_sha256:sha256(text) });
   if (process.env.GITHUB_STEP_SUMMARY) await writeFile(process.env.GITHUB_STEP_SUMMARY,`## Catalog snapshot\n\nStatus: **${snapshot.quality.status}**. Fresh sources: ${snapshot.quality.freshSources}/7.\n\nSHA256: \`${sha256(text)}\`\n\nSee report.json for original per-source fetchedAt timestamps and failures.\n`,{flag:'a'});
   console.log(`Validated snapshot: ${snapshot.quality.status}, ${snapshot.quality.freshSources}/7 fresh sources, SHA256 ${sha256(text)}`);

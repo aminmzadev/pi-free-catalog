@@ -3,13 +3,14 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { boundedBody } from '../lib.mjs';
+import { boundedBody, outputs } from '../lib.mjs';
 import { rulesHash } from './core.mjs';
-import { verifyPublicSnapshot } from './verify-live.mjs';
+import { verifyPublicSnapshot, freshnessState } from './verify-live.mjs';
 
 const REPO = 'aminmzadev/pi-free-catalog';
 const API = `https://api.github.com/repos/${REPO}`;
 const ENVIRONMENT = 'github-pages';
+const DEPLOYMENT_VERIFY_STEP = 'Verify run-specific public deployment';
 const VERIFY_STEP = 'Verify public Pages bytes and snapshot after bounded propagation wait';
 export const PRUNE_POLICY = Object.freeze({ maxPages: 10, pageSize: 100, maxDeletes: 100, budgetMs: 480000, requestTimeoutMs: 10000, mutationIntervalMs: 1100 });
 export const PRUNE_PUBLIC_POLICY = Object.freeze({ attempts: 12, intervalMs: 5000, budgetMs: 60000, requestTimeoutMs: 5000 });
@@ -108,7 +109,7 @@ export async function pruneDeployments({ context, api, verifyPublic, apply = fal
   requireSafe(matches.length === 1, 'ambiguous-deploy-job');
   const job = matches[0];
   requireSafe(id(job.id) && String(job.run_id) === String(context.runId) && job.head_sha === context.commit && job.status === 'completed'
-   && job.conclusion === 'success' && job.steps?.some(s => s.name === VERIFY_STEP && s.status === 'completed' && s.conclusion === 'success'), 'deploy-not-verified');
+   && job.conclusion === 'success' && job.steps?.some(s => s.name === DEPLOYMENT_VERIFY_STEP && s.status === 'completed' && s.conclusion === 'success') && job.steps?.some(s => s.name === VERIFY_STEP && s.status === 'completed' && s.conclusion === 'success'), 'deploy-not-verified');
   report.jobId = job.id;
   report.stage = 'public-snapshot'; requireSafe(await checkPublic(), 'public-snapshot-unverified'); budget();
   report.stage = 'inventory';
@@ -177,6 +178,7 @@ export async function pruneDeployments({ context, api, verifyPublic, apply = fal
   report.succeeded = true; report.reason = remaining.length === 1 ? 'current-only' : 'protected-records-retained'; report.stage = 'complete';
  } catch (error) {
   report.reason = error instanceof SafetyError ? error.code : 'request-or-validation-failed';
+  report.deferred = report.reason === 'latest-freshness-deferred';
  }
  await persist(); return report;
 }
@@ -210,6 +212,7 @@ export function publicVerifier({ expectedRules, fetcher = globalThis.fetch, now 
    expectedRules, fetcher, now, sleep, log: () => {},
    policy: { ...policy, budgetMs: Math.min(policy.budgetMs, Math.floor(budgetMs)) } });
   await onObservation(observation);
+  if (!observation.verified && freshnessState(observation) === 'deferred') throw new SafetyError('latest-freshness-deferred');
   requireSafe(observation.verified, 'public-snapshot-unverified');
   return true;
  };
@@ -233,6 +236,11 @@ async function main() {
  report.publicChecks = publicChecks;
  await writeFile(output, JSON.stringify(report, null, 2) + '\n');
  console.log(`Pages deployment retention: ${report.reason}; protected=${report.protectedId ?? 'none'}; deleted=${report.actions?.filter(a => a.stage === 'deleted').length ?? 0}; retained=${report.remaining?.length ?? 0}.`);
- if (!report.succeeded) process.exitCode = 1;
+ await outputs({ cleanup_ready: report.succeeded ? 'true' : 'false' });
+ if (report.deferred) {
+  console.warn('::warning::Cleanup deferred: exact latest.json freshness is not confirmed. No further mutations are allowed. Inspect retention diagnostics for any earlier completed actions.');
+  if (process.env.GITHUB_STEP_SUMMARY) await writeFile(process.env.GITHUB_STEP_SUMMARY, '## Catalog cleanup\n\n**Deferred**: latest.json freshness is not confirmed. No further mutations were permitted. See retention diagnostics.\n',{flag:'a'});
+ }
+ if (!report.succeeded && !report.deferred) process.exitCode = 1;
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) await main();

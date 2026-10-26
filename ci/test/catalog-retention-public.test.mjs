@@ -30,7 +30,7 @@ test('cleanup tolerates stale CDN bytes only after receiving the exact current s
 test('permanently stale CDN responses exhaust a finite read-only attempt cap', async () => {
  const f = await fixture(), t = clock(), receipts = []; let calls = 0;
  const verify = publicVerifier({ expectedRules: f.expectedRules, ...t, policy, onObservation: r => receipts.push(r), fetcher: async () => { calls++; return new Response(f.stale); } });
- await assert.rejects(verify(f.context), /public-snapshot-unverified/);
+ await assert.rejects(verify(f.context), /latest-freshness-deferred/);
  assert.equal(calls, 12); assert.equal(t.elapsed(), 55000); assert.equal(receipts[0].verified, false);
  assert.equal(receipts[0].reason, 'attempts-exhausted');
 });
@@ -38,7 +38,7 @@ test('permanently stale CDN responses exhaust a finite read-only attempt cap', a
 test('remaining retention budget limits verification and prevents further reads', async () => {
  const f = await fixture(), t = clock(), receipts = []; let calls = 0;
  const verify = publicVerifier({ expectedRules: f.expectedRules, ...t, policy, onObservation: r => receipts.push(r), fetcher: async () => { calls++; return new Response(f.stale); } });
- await assert.rejects(verify(f.context, { budgetMs: 5 }), /public-snapshot-unverified/);
+ await assert.rejects(verify(f.context, { budgetMs: 5 }), /latest-freshness-deferred/);
  assert.equal(calls, 1); assert.equal(t.elapsed(), 5); assert.equal(receipts[0].reason, 'budget-exhausted');
 });
 
