@@ -52,8 +52,8 @@ function widthOf(terminal) {
 }
 export function chatCountsText(state, width) {
   const counts = summary(state);
-  const [k, z, o] = ['kilo', 'zen', 'ovh'].map(service => counts[service].freeChat);
-  const choices = [`Free chat: Kilo ${k} · Zen ${z} · OVH ${o}`, `Free chat: K${k} Z${z} O${o}`, `K${k} Z${z} O${o}`];
+  const [k, o] = ['kilo', 'ovh'].map(service => counts[service].freeChat);
+  const choices = [`Free chat: Kilo ${k} · OVH ${o}`, `Free chat: K${k} O${o}`, `K${k} O${o}`];
   // Pi's truncator can append an ANSI reset even to plain input; keep this label plain.
   return truncateToWidth(choices.find(text => visibleWidth(text) <= width) ?? choices.at(-1), width, '').replaceAll('\x1b[0m', '');
 }

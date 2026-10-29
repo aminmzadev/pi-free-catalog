@@ -95,17 +95,7 @@ test("bare Kilo toggle has no invented medium or high effort", () => {
     /not advertised/,
   );
 });
-test("bare Zen toggle similarly preserves enabled payload without inventing an effort", () => {
-  const e = entry([{ type: "toggle" }], "zen");
-  assert.deepEqual(selectThinking(e, state, "on"), {
-    thinking: { type: "enabled" },
-  });
-  assert.equal(piLevelForNative(e, state, "on"), null);
-  assert.equal(piLevelForNative(e, state, "off"), "off");
-  assert.deepEqual(selectThinking(e, state, "auto", "off"), {
-    thinking: { type: "disabled" },
-  });
-});
+
 test("thinking enabled with a token budget is not silently labelled as a Pi effort", () => {
   const e = entry({
     thinking: { thinking: { type: "enabled", budget_tokens: 1234 } },
@@ -122,22 +112,7 @@ test("top-level reasoning_effort obeys the same precedence architecture", () => 
     reasoning_effort: "low",
   });
 });
-test("Zen explicitly advertised effort values remain available with exact payloads", () => {
-  const e = entry(
-    [{ type: "effort", values: ["none", "low", "high", "max"] }],
-    "zen",
-  );
-  assert.deepEqual(getSupportedThinkingLevels(piModel(e, state)), [
-    "off",
-    "low",
-    "high",
-    "max",
-  ]);
-  for (const effort of ["low", "high", "max"])
-    assert.deepEqual(selectThinking(e, state, "auto", effort), {
-      reasoning_effort: effort,
-    });
-});
+
 test("a native Pi-named choice without an effort field retains its exact native payload", () => {
   const e = entry({
     high: { thinking: { type: "enabled", budget_tokens: 9999 } },

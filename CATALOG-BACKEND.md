@@ -1,133 +1,101 @@
 # Central catalog backend and client boundary
 
-This backend collects public metadata and deploys a self-contained snapshot to GitHub Pages. The Pi extension consumes that endpoint only at startup and explicit `/free-refresh`, with cache-first registration and bounded direct-source recovery. Optional default-OFF pools and pre-activity handoff are described in the README and REFERENCE. These client features do not change backend collection, anonymous access or the three fingerprinted production rule modules. A source push is not a release: GitHub/npm publication requires a separately approved stable release event.
+The backend collects public Kilo and OVH metadata and publishes a self-contained GitHub Pages snapshot. Pi reads it at startup and explicit `/free-refresh`; inference goes directly to the selected model provider. The site is not an inference proxy. No provider credentials, inference calls, accounts or paid activation are needed for collection.
 
-## Data flow
+## Version 2 contract
 
-`catalog.yml -> offline tests -> collect.mjs -> validateSnapshot -> immutable Pages artifact -> independent artifact verification -> deploy-pages`
+The fixed client endpoint is:
 
-The default public URLs, once this repository's Pages site is enabled and successfully deployed, are:
-
-- `https://aminmzadev.github.io/pi-free-catalog/catalog/v1/latest.json`
-- `https://aminmzadev.github.io/pi-free-catalog/catalog/v1/schema.json`
-
-These are metadata endpoints, not inference proxies. They do not fix a customer's connectivity to model inference services. GitHub Pages custom domains/paths are not auto-discovered; changing the fixed previous-snapshot URL requires an explicit reviewed change.
-
-## Version 1 contract
-
-The machine-readable envelope schema is `ci/catalog/schema-v1.json`. `core.mjs` is the authoritative semantic validator and adds checks that JSON Schema alone cannot express: source identity, cross-field timestamps, fixed-point reconciliation, source/data hashes, quality thresholds and summaries.
-
-The single JSON document contains:
-
-- `schemaVersion: 1`: a backend transport contract, separate from the extension cache and npm version.
-- `generatedAt`: canonical UTC build timestamp. **Not** proof that all sources are fresh.
-- `producer`: exact repository, catalog workflow, commit SHA and Actions run ID (null for local execution).
-- `rulesHash`: fingerprint of the unchanged production `src/catalog.js`, `src/lifecycle.js` and `src/ovh.js` files.
-- `sources`: all seven source payloads and original URLs, `fresh`/`retained` status, `fetchedAt`, `attemptedAt`, row count, data and response hashes, structured failure code, consecutive failure count and first-failure time.
-- `catalog`: reconciled entries, changes and bounded history. Entries include all inventory IDs/classifications, not only currently eligible chat models. Historical and classifier records are not silently removed.
-- `summary`: the production reconciler's per-provider counts.
-- `quality`: fresh/retained counts, fresh/degraded status and reviewed large declines.
-- `integrity`: SHA256 of the canonical payload without the integrity field.
-
-Canonicalization sorts object keys recursively, preserves array order and uses Node's JSON serialization/UTF-8. It is a project-specific deterministic encoding, not a claim to implement an external canonical-JSON standard. The whole deployed JSON file has a separate SHA256 transferred independently between build and deployment jobs.
-
-`bodySha256` hashes the received decoded HTTP body before JSON normalization. `dataSha256` hashes the normalized published source payload. For the two broad registry sources, **all OpenCode models and their complete model records** are retained, while unrelated provider registries are omitted. The production rules only read this slice; offline tests prove identical reconciliation using full fixtures versus projected input. A response hash does not let clients reconstruct discarded unrelated providers.
-
-Hashes detect corruption and cross-job substitution. A hash delivered with a file does not independently authenticate its origin; trust still depends on HTTPS, the controlled Pages deployment and repository/workflow governance.
-
-## Fetching and last-known-good (LKG)
-
-Only the fixed production metadata URLs and this site's fixed previous-snapshot URL are allowed. Requests are GET-only, anonymous, without credentials, with redirects disabled, a 20-second timeout and a 16 MiB decoded upstream body limit. Previous snapshots are bounded at 32 MiB. Source rows are limited to 10,000 (2,000 for each OVH inventory/catalog) before reconciliation to bound cross-record work; legitimate growth past these limits requires explicit review. Failures are not retried aggressively; the next scheduled run can recover. HTTP 429 is retained as a failure, not bypassed through IP rotation or alternate accounts. No inference requests are made.
-
-GitHub Pages serves responses with a CDN cache lifetime (observed `max-age=600`). `Cache-Control: no-cache` alone did not avoid a warm edge returning the prior deployment during real refresh testing. Backend reads of the fixed previous-snapshot endpoint therefore append a freshly generated `catalog_read=<UUID>` query and request `cache: no-store`; the host/path remain fixed, caller-supplied queries are forbidden, and upstream source requests are unchanged. This is CDN metadata freshness handling, not inference rate-limit evasion. Public consumers using the plain URL can still see CDN lag; the Phase A client uses the same controlled cache-busting pattern and explicitly handles source ages.
-
-Before fetching sources, the previous public snapshot must pass full contract, source, integrity, summary and production-rule validation. A corrupt, incompatible or unreachable previous snapshot is a **hard failure**, never permission to reset history. Rule changes require an explicit migration plan; they must not silently erase the old snapshot.
-
-For each failed upstream, copy its complete previous valid payload, original successful `fetchedAt`, response/data hashes and row count. Only the attempt timestamp/failure bookkeeping changes. No timestamp is promoted to fresh merely because a new file was built. Healthy sources can update independently; production reconciliation receives the previous catalog state so retained price decisions and historical IDs remain intact.
-
-Already-known lifecycle deadlines are applied at the actual new generation time. Keeping an old source does not freeze known retirement dates. Retention is metadata preservation, not a promise of continued inference entitlement or service availability.
-
-If **all seven** sources fail, no replacement snapshot is deployed. If some fail but every source has valid LKG, a validated degraded snapshot may be deployed. There is no arbitrary TTL that pretends old data is new; age is transparent in each source's timestamps. These are backend rules; the separate Phase A client uses soft source age for recovery, never as an expiry that disables cached inference.
-
-## Quality gates
-
-HTTP 200/JSON syntax is insufficient. The backend reuses production source validation and verifies complete inventory representation, exact source URLs, hashes, valid UTC timestamps, source bookkeeping, production-rule reproducibility and summary equality. Histories, payload sizes and JSON nesting are bounded.
-
-A decline of **more than 50%** in either a source's row count or a provider's eligible/free inventory compared with the previous snapshot blocks deployment and creates `rejected-candidate.json`. The eligibility baseline first applies already-known lifecycle deadlines at the current time, so a previously announced deadline alone is not mistaken for an unexplained price/catalog collapse.
-
-This threshold is an operational review trigger, **not proof that the upstream is wrong**. It deliberately does not silently substitute stale data for a structurally valid newly paid/removed catalog. A maintainer must inspect the rejected candidate, public source evidence and report before rerunning manually with `approve_large_changes: true`. That switch only acknowledges the size-of-change gate; it does not bypass schema checks, missing bootstrap sources, unknown rules, hashes, source allowlists or security checks. Historical IDs remain in the reconciliation history even when fresh valid inventories no longer list them.
-
-Smaller valid changes use normal production rules; unknown prices/capabilities remain unknown, not fabricated. A record's name is never the entitlement filter.
-
-## Workflow and permissions
-
-`.github/workflows/catalog.yml` runs at UTC minutes 7, 22, 37 and 52 each hour, with manual dispatch. GitHub scheduling can be delayed, dropped or disabled for inactive public repositories; 15 minutes is a desired cadence, not an availability guarantee. Monitor source ages and workflow failures, not just file generation times.
-
-- Both jobs are guarded to the exact repository and `main`, and checkout the event SHA.
-- A workflow-wide `catalog-pages` concurrency group covers collection and deployment. Running executions are not cancelled by newer ones; older pending runs may be replaced by GitHub's concurrency queue behavior.
-- Collector permissions: `contents: read` only. It uses built-in Node modules and existing source/fixtures; **no dependency installation, npm credentials or OIDC write permission**.
-- Deployment permissions: `contents: read`, `pages: write`, `id-token: write`, using the separate `github-pages` environment. This OIDC permission is for Pages, not npm.
-- Official actions are pinned to full commit SHAs. Checkout does not persist credentials.
-- The deployment job downloads the immutable same-run artifact ID with digest checks, inspects its tar without extracting paths, rejects traversal/symlinks/extra files/duplicates, verifies the independently transferred JSON SHA256, reruns contract validation, checks commit/run identity, then deploys that same artifact. No upstream collection/rebuilding occurs there. A final public verification makes at most six bounded GET attempts, checking exact file bytes, contract and commit/run identity after CDN propagation. If that final verification fails, deployment may already have succeeded; inspect the run rather than resetting history.
-- Diagnostics last 14 days; Pages build artifacts last 7 days. Artifacts are forensic evidence, never the extension's public data endpoint.
-
-A collector failure removes any stale local deployable output. The upload/deploy steps require success. The previously deployed Pages site remains the recovery state; failures never publish an empty replacement. No generated catalog files are committed into main every 15 minutes.
-
-## Initial deployment
-
-1. Enable this repository's GitHub Pages with **GitHub Actions** as its build source; use the standard project URL above.
-2. Restrict the separate `github-pages` environment to the `main` branch. Do not reuse/change the npm-publish environment.
-3. Wait for repository CI and all offline tests to pass.
-4. Run **Catalog -> Run workflow -> main**, with `bootstrap: true` and `approve_large_changes: false`.
-5. Bootstrap is accepted **only** if the previous endpoint returns HTTP 404 and **all seven real sources** fetch and validate successfully. No fixture, stale artifact or empty default can seed production. If the previous endpoint already exists, bootstrap is refused.
-6. Independently download the deployed snapshot/schema, validate the snapshot and compare the exact file SHA256 with the workflow output. Confirm the resulting Pages URL.
-7. Leave bootstrap false for all later scheduled/manual runs. Review several real cycles (preferably a day) to assess scheduling stability; one successful scheduled run alone does not establish a 24-hour SLA.
-
-A genuinely lost Pages deployment, a rules/schema migration or a custom-domain move needs an explicit recovery/migration procedure. Do not abuse bootstrap to hide a failed previous-snapshot read.
-
-## Local/offline testing
-
-Use the pinned Node 22.19.0 or 26.0.0 runtime:
-
-```sh
-node ci/check.mjs
-node --test ci/test/catalog*.test.mjs
-node ci/lint-workflows.mjs
+```text
+https://aminmzadev.github.io/pi-free-catalog/catalog/v2/latest.json
 ```
 
-The tests exercise the existing factual fixtures, not real inference: direct-versus-snapshot parity; complete ID coverage; per-source outages; malformed/HTML/empty/duplicate payloads; HTTP 429/5xx; retained timestamps and recovery; known lifecycle deadlines; large-change review; corrupt/incompatible/absent previous state; response limits/timeouts/URL allowlists; actual CLI behavior in an isolated temporary git repository; cross-job hash checks and unsafe tar rejection; and workflow permissions/triggers.
+The site also contains `catalog/v2/schema.json` and the current build's run-specific proof file:
 
-The normal CI matrix also runs the extension tests and clean installed-TGZ Pi-loader checks. Backend transport/collector files remain repository-only and excluded by the existing package manifest. The data-only snapshot contract now lives in `src/snapshot-contract.js`, shared by the shipped client and backend, without runtime imports from `ci/`. The three fingerprinted production modules are unchanged. The source package and matching lockfile declare version 0.1.7. Publication status is determined by the registry, not the presence of this source version.
+```text
+catalog/v2/runs/<run-id>/<snapshot-sha256>.json
+```
 
-## Release boundary
+The proof and `latest.json` contain identical canonical bytes. The site is not an accumulating archive: later deployments can remove older proof paths, but do not overwrite a proof path with different snapshot bytes. Custom hosts and caller-supplied endpoint URLs are not accepted.
 
-- This local integration does not authorize a remote push, GitHub Release, npm publication or changes to Trusted Publisher settings.
-- A published stable GitHub Release triggers the repository publication workflow; release approval must include that consequence.
-- Client routing remains restricted to reviewed, explicitly selected eligible models. The existing production classification, lifecycle and anonymous-entitlement rules remain unchanged.
+`ci/catalog/schema-v2.json` describes the envelope. The data-only contract in `src/snapshot-contract.js` is shared by client and backend; it has no CI dependencies or fetching. Its semantic validator additionally enforces source identities, hashes, producer identity, canonical UTC timestamps, complete inventories, fixed-point reconciliation, summaries, row/byte limits and quality gates.
 
-Official references:
-- https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows
-- https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages
-- https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments
+The snapshot contains:
 
-## Public verification after deployment
+- `schemaVersion: 2`, separate from the local saved-cache schema and npm version;
+- `generatedAt`, the observation/build time, not proof that every source is fresh;
+- `producer`, including the repository, workflow, exact commit and run ID;
+- `rulesHash`, fingerprinting `src/catalog.js`, `src/lifecycle.js` and `src/ovh.js`;
+- `sources`, exactly `kilo`, `ovh`, and `ovhmeta`, with source URLs, complete payloads, fresh/retained status, original fetch times, latest attempt times, row counts, hashes and bounded structured failure records;
+- `catalog`, with every remaining-provider inventory record, changes and bounded history, not merely a free-chat allowlist;
+- `summary` and `quality`, reproduced and checked against the production rules;
+- `integrity`, the SHA-256 of the canonical payload without its integrity field.
 
-The Pages deploy action succeeding and the newly deployed bytes being visible
-from a runner's CDN edge are separate events. The final verifier preserves exact
-file SHA-256, snapshot contract/rules/integrity, producer commit/run and canonical
-byte checks. It makes up to 18 cache-busted GETs with 10-second retry intervals,
-within one 180-second monotonic budget. Each request/body is bounded by the
-smaller of 20 seconds and the remaining overall budget. The deployment job keeps
-its existing 10-minute limit and deployment action timeout; no integrity check is
-weakened, and no redeploy/rebuild happens during verification.
+Object keys are sorted recursively; array order is preserved. This is a project-specific deterministic JSON encoding. The exact deployed file has a separate SHA-256 transferred from collection to the deployment job. Source `bodySha256` hashes decoded received bytes before JSON normalization; `dataSha256` hashes the complete normalized source payload.
 
-Each attempt logs the stage, HTTP status, expected/received hash, received producer
-identity, elapsed time and an allowlisted set of cache/CDN headers. Full metadata
-bodies, cookies, authorization headers and arbitrary exception payloads are never
-logged. `artifacts/catalog/live-verification.json` is uploaded as the
-`catalog-live-verification` diagnostic artifact on success or failure (14-day
-retention), and is not a runtime endpoint or part of the published catalog.
-A final non-match still fails the job. Its red status does not itself mean the
-deploy action failed or that Pages rolled the published file back. Check the
-recorded attempt stages and producer identity before changing any configuration;
-never reset history or bypass validation to make a delayed deployment green.
+Hashes detect corruption and substitution, not independent origin authentication. HTTPS and the controlled repository/deployment pipeline remain the trust boundary.
+
+## Fetching and last-known-good
+
+The production source allowlist contains three URLs:
+
+```text
+https://api.kilo.ai/api/gateway/models
+https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/models
+https://catalog.endpoints.ai.ovh.net/rest/v1/models_v2
+```
+
+Requests are anonymous GETs, with redirects disabled, 20-second request timeouts and a 16 MiB decoded upstream body limit. Previous snapshots are bounded at 32 MiB. Kilo rows are limited to 10,000 and each OVH inventory/catalog to 2,000 before reconciliation. Growth past a bound requires review. No inference or mutation is used to resolve a source failure.
+
+Previous snapshots must validate before their LKG is used. A source failure preserves its complete previous payload, original successful `fetchedAt` and source hash, while updating the failure/attempt bookkeeping. It never pretends an old fetch is new. A missing LKG blocks publication. If all three sources fail, no replacement is deployed; partially retained data can produce an explicitly degraded, validated snapshot.
+
+Large source-row or eligible-model declines require separate manual review. Time cannot move backwards. Fresh paid, withdrawn or retired evidence cannot be masked by the previous free set. Ordinary collection does not silently reset history.
+
+The client can try direct recovery when Pages is unavailable, invalid, older than local source evidence or has source data older than 45 minutes. That threshold does not disable justified cached inference. There is no background metadata polling, prompt-triggered refresh, model-switch refresh or thinking-menu fetch. Concurrent startup/manual operations are deduplicated and shutdown cancels pending work.
+
+## Reviewed v1 retirement and migration
+
+The v2 artifact does not retain the old v1 feed or schema. Older extension packages are not modified or unpublished; they can use their existing direct-source fallback when v1 is unavailable.
+
+A normal backend run first reads and validates v2. **Only a v2 HTTP 404** permits one attempt to read the fixed legacy v1 URL as migration input. A corrupt, incompatible, unauthorized, rate-limited, unavailable or unreachable existing v2 snapshot does not permit fallback to older rules or an empty starting state.
+
+`src/legacy-snapshot.js` accepts only the published 0.1.7 production-rules fingerprint:
+
+```text
+5cf7d78a8622732cc69126b186ba814b5dc55b5458079e7323af6aaff157987d
+```
+
+It checks legacy envelope integrity and source inventory, removes only retired-provider data, preserves the remaining sources, entries, first-seen times and history, and constructs a version-2 candidate with the destination rules fingerprint. Full destination validation then checks exact Kilo/OVH URLs, source hashes, timestamps, semantic reconciliation, summaries and quality. This is a specific one-way migration, not acceptance of arbitrary old fingerprints or a disabled rules check.
+
+An existing valid legacy deployment forbids bootstrap. Starting without either version requires explicit bootstrap and both endpoints returning HTTP 404; all three real sources must then validate. Corruption and network errors are not bootstrap permission. No fixtures or empty default can seed a production deployment.
+
+The old v1 URL is read only for this missing-v2 migration. Neither the v2 client nor normal source collection contacts the removed provider's services.
+
+## Exact artifact and public deployment verification
+
+The collector builds the site once. Deployment downloads and verifies that exact artifact without rebuilding it. Tar inspection occurs without extraction and requires exactly the expected four files, safe directories/types, bounded sizes, identical latest/proof bytes, the expected file hash, valid contract, canonical representation and exact commit/run identity.
+
+After `deploy-pages`, the workflow performs two distinct bounded public checks:
+
+1. **Run-specific publication proof:** the unique run/hash URL must serve the exact expected bytes and identity. Missing or incorrect proof is a failure.
+2. **Latest freshness:** the stable v2 URL must separately match the same exact snapshot. A validated canonical older run, or temporary unavailability, can be reported as **deferred**, with a warning and diagnostics. Corrupt, noncanonical, wrong-content same-run and unexpected newer-run data remain failures.
+
+Deferral is never called verified. The workflow exports `latest_verified=false` and skips cleanup. Each public check retains the finite 18-attempt, 180-second overall, 20-second request policy; the deploy job allows 15 minutes for the two checks and the deployment action. Backend-generated UUID queries and no-store headers can reduce warm-edge caching but do not guarantee freshness at every CDN location.
+
+## Guarded deployment-record cleanup
+
+Cleanup requires successful unique proof and exact latest freshness. It retains all current/newest deployment protection, workflow provenance, repository/environment scope, complete-inventory, age, race, pacing, deletion-cap and deadline guards. Its dry-run output gates the apply step.
+
+Public latest is rechecked during cleanup. If valid older data or temporary unavailability prevents exact confirmation, the operation explicitly defers and stops further mutations. It does not retry mutations, suppress arbitrary errors or hide actions already completed. A deferred preview sets `cleanup_ready=false` and blocks apply. Corrupt data, API failures, ambiguous inventory and race failures are not silently accepted.
+
+Only bounded read operations are retried. No blanket `continue-on-error`, unbounded waiting, token forwarding to Pages or deployment-deletion replay is used.
+
+## Verification and boundaries
+
+Repository automation tests cover malformed/oversized/duplicate inventories, missing LKG, degraded retention, reviewed rule migration, corruption, semantic resealing, time rollback, large declines, exact tar validation, independent proof/freshness results, stale-data deferral, cleanup mutation prevention, provenance/race failures and finite budgets.
+
+A frozen before/after golden comparison protects Kilo/OVH reconciliation and eligibility. Upgrade tests exercise plain/gzip saved caches and actual pool persistence, keeping remaining settings, cooldowns and OVH accounting without implicit re-enablement or a cycle refund.
+
+The CI matrix verifies source behavior, automation, exact package contents and the real clean-installed Pi loader. Backend/workflow files remain outside the npm package; runtime modules never import `ci/`. Offline fixtures and SDK/session tests are not live provider certification.
+
+The Catalog schedule and job permissions are unchanged. A source change does not by itself publish an npm version, create a GitHub Release or authorize an extra workflow dispatch.

@@ -3,9 +3,9 @@ import { OvhPool } from '../src/ovh-pool.js';
 import { state } from './helpers.mjs';
 import { registrations } from '../src/models.js';
 import { PROVIDERS, recordKey } from '../src/catalog.js';
-export const K=recordKey('kilo','reflection/beam-free'),Z=recordKey('zen','beam-free'),A=recordKey('ovh','gpt-oss-120b'),B=recordKey('ovh','gpt-oss-20b');
+export const K=recordKey('kilo','reflection/beam-free'),K2=recordKey('kilo','thinkingmachines/inkling-small:free'),A=recordKey('ovh','gpt-oss-120b'),B=recordKey('ovh','gpt-oss-20b');
 export const context=()=>({messages:[{role:'user',content:[{type:'text',text:'Offline fixture'}],timestamp:1}],tools:[]});
-export function environment({models=[K,Z],weights={},cycles=0,scheduling='auto',persist,synthetic=false}={}){
+export function environment({models=[K,K2],weights={},cycles=0,scheduling='auto',persist,synthetic=false}={}){
   let now=1000,disk,fail=false,sends=0;
   const catalog=synthetic?{state:{entries:{},sources:{}},assertUsable(service,id){const e=this.state.entries[recordKey(service,id)];if(!e||!e.listed)throw Error('Not eligible');return e;}}:{state:state(),assertUsable(service,id){const e=this.state.entries[recordKey(service,id)];if(!e||!e.listed||e.classification!=='free'||e.lifecycle==='retired')throw Error('Not eligible');return e;}};
   const ovh=new OvhPool({catalog,now:()=>now});

@@ -8,9 +8,9 @@ export async function snapshotFixture({data=fixtures,at='2026-10-22T00:00:00.000
   return [name,{url:SOURCES[name],fresh,status:fresh?'fresh':'retained',fetchedAt:fresh?at:new Date(Date.parse(at)-900000).toISOString(),attemptedAt:at,data:payload,dataSha256:dataHash(payload),bodySha256:sha256(JSON.stringify(data[name])),rowCount:rowCount(name,payload),failure:fresh?null:{code:'http',httpStatus:503},consecutiveFailures:fresh?0:1,firstFailureAt:fresh?null:at}];
  }));
  const state=reconcile(sources,previous?asState(previous):{},at);
- return seal({schemaVersion:1,generatedAt:at,producer:{repository:REPOSITORY,workflow:'catalog.yml',commit:'a'.repeat(40),runId:'42'},rulesHash:await rulesHash(),sources,catalog:{entries:state.entries,changes:state.changes,history:state.history},summary:summary(state),quality:{status:retained.length?'degraded':'fresh',freshSources:7-retained.length,retainedSources:retained.length,largeChanges:[],largeChangesApproved:false}});
+ return seal({schemaVersion:2,generatedAt:at,producer:{repository:REPOSITORY,workflow:'catalog.yml',commit:'a'.repeat(40),runId:'42'},rulesHash:await rulesHash(),sources,catalog:{entries:state.entries,changes:state.changes,history:state.history},summary:summary(state),quality:{status:retained.length?'degraded':'fresh',freshSources:3-retained.length,retainedSources:retained.length,largeChanges:[],largeChangesApproved:false}});
 }
-export function isPages(url){const u=new URL(String(url));return u.origin+u.pathname==='https://aminmzadev.github.io/pi-free-catalog/catalog/v1/latest.json';}
+export function isPages(url){const u=new URL(String(url));return u.origin+u.pathname==='https://aminmzadev.github.io/pi-free-catalog/catalog/v2/latest.json';}
 export function pagesFetcher(snapshot,{fallback,trace=[]}={}){
  return async(url,init)=>{
   trace.push(String(url));

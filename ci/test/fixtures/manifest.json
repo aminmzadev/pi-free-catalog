@@ -1,0 +1,13 @@
+{
+  "note": "Repository-only frozen 0.1.7 data. Generated offline from the preserved factual fixtures at the pinned fixture clock; never fetched and never shipped in the npm package.",
+  "legacy-v1-snapshot.json.gz": {
+    "purpose": "Complete sealed v1 snapshot from unchanged 0.1.7 rules, including all seven historical sources.",
+    "gzip_sha256": "edd0509fa373a165fcbad1031f75e0c66cd6c44c52893793aa2101294188b26a",
+    "normalized_json_sha256": "32d49289929431c9c165a4da7e43be70f4cea144e6dd7c15e7e28e469ded740c"
+  },
+  "remaining-providers-v0.1.7.json.gz": {
+    "purpose": "Kilo/OVH entries and summary produced by unchanged 0.1.7 rules before provider removal.",
+    "gzip_sha256": "e25d74438ed358ea834be83d7b6b31eda1a869a0d982796a04ef585c456e32b6",
+    "normalized_json_sha256": "4dceba8e06db8bad16da10886a36f5232d4d6e9c098c555e667a361f1b28305c"
+  }
+}

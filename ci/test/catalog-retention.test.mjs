@@ -183,7 +183,7 @@ test('public verifier checks actual snapshot hash and contract without forwardin
  const c = { ...context, commit: snapshot.producer.commit, runId: snapshot.producer.runId, expected: sha256(bytes) }; let requests = 0;
  const once = { attempts: 1, intervalMs: 1, budgetMs: 10000, requestTimeoutMs: 10000 };
  const verify = publicVerifier({ expectedRules, policy: once, fetcher: async (url, init) => {
-  requests++; assert.equal(new URL(url).origin + new URL(url).pathname, 'https://aminmzadev.github.io/pi-free-catalog/catalog/v1/latest.json');
+  requests++; assert.equal(new URL(url).origin + new URL(url).pathname, 'https://aminmzadev.github.io/pi-free-catalog/catalog/v2/latest.json');
   assert.equal(init.redirect, 'error'); assert.equal(init.headers.authorization, undefined); return new Response(bytes);
  } });
  assert.equal(await verify(c), true); await assert.rejects(verify({ ...c, expected: '0'.repeat(64) })); await assert.rejects(verify({ ...c, runId: '999' })); assert.equal(requests, 3);

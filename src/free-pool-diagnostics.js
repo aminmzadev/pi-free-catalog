@@ -1,7 +1,7 @@
 import { clean } from './catalog-report.js';
 
 export const MAX_COOLDOWN_EVIDENCE = 128;
-const services = new Set(['kilo', 'zen', 'ovh']);
+const services = new Set(['kilo', 'ovh']);
 const sources = new Set(['retry-after', 'fallback', 'ovh-ledger']);
 const time = n => Number.isSafeInteger(n) && n >= 0 && n <= 8640000000000000;
 const safeId = id => typeof id === 'string' && id.length > 0 && id.length <= 256 && !/[\x00-\x1f\x7f-\x9f]/.test(id);

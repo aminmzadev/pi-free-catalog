@@ -19,10 +19,6 @@ Socket.prototype.connect = function () {
 };
 const mapping = {
  'https://api.kilo.ai/api/gateway/models': 'kilo',
- 'https://opencode.ai/zen/v1/models': 'opencode',
- 'https://models.opencode.ai/api.json': 'opencode-capabilities',
- 'https://models.dev/api.json': 'models-dev',
- 'https://pi.dev/api/models/providers/opencode?types=chat,image,classifier': 'pi-opencode-catalog',
  'https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/models': 'ovh-models',
  'https://catalog.endpoints.ai.ovh.net/rest/v1/models_v2': 'ovh-catalog',
 };
@@ -30,7 +26,7 @@ const fixtureFetch = async (input, init = {}) => {
  const url = String(input instanceof Request ? input.url : input);
  const method = (init.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
  const parsed = new URL(url);
- const pages = parsed.origin + parsed.pathname === 'https://aminmzadev.github.io/pi-free-catalog/catalog/v1/latest.json';
+ const pages = parsed.origin + parsed.pathname === 'https://aminmzadev.github.io/pi-free-catalog/catalog/v2/latest.json';
  const allowed = method === 'GET' && (pages || !!mapping[url]);
  appendFileSync(process.env.LOCAL_LOADER_LOG, JSON.stringify({method,url,allowed,network:false}) + '\\n');
  if (!allowed) throw Error('Network and inference forbidden in offline loader regression');

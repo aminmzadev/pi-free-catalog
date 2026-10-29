@@ -67,7 +67,7 @@ test('release documentation has no operation-specific status or detached note dr
   const docs = await readdir(join(root, 'docs'));
   assert.ok(!docs.some(name => /^RELEASE-NOTES-/.test(name)));
   const changelog = await load('CHANGELOG.md');
-  assert.match(changelog, /^## 0\.1\.7$/m);
+  assert.match(changelog, /^## 0\.1\.8$/m);
   assert.doesNotMatch(changelog, /Prepared for the next separately approved release|release-documentation preparation/);
   for (const path of ['README.md', 'REFERENCE.md', 'CHANGELOG.md', 'CATALOG-BACKEND.md']) {
     const text = await load(path);

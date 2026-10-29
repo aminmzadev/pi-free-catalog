@@ -2,20 +2,17 @@ import { readFile, mkdir, writeFile, rename, rm } from "node:fs/promises";
 import { gzipSync, gunzipSync } from "node:zlib";
 import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";
+import { migrateCatalogState } from "./provider-removal.js";
 import { lifecycle, explicitDeadlines, validDeadline } from "./lifecycle.js";
 import { OVH_BASE, ovhRecord, ovhMetadata, validateOvhCatalog, createOvhPacer } from "./ovh.js";
 export { lifecycle } from "./lifecycle.js";
 
 export const SOURCES = Object.freeze({
   kilo: "https://api.kilo.ai/api/gateway/models",
-  zen: "https://opencode.ai/zen/v1/models",
-  official: "https://models.opencode.ai/api.json",
-  modelsdev: "https://models.dev/api.json",
-  pi: "https://pi.dev/api/models/providers/opencode?types=chat,image,classifier",
   ovh: `${OVH_BASE}/models`,
   ovhmeta: "https://catalog.endpoints.ai.ovh.net/rest/v1/models_v2",
 });
-export const PROVIDERS = Object.freeze({ kilo: "free-kilo", zen: "free-zen", ovh: "free-ovh" });
+export const PROVIDERS = Object.freeze({ kilo: "free-kilo", ovh: "free-ovh" });
 export const recordKey = (service, id) => JSON.stringify([service, id]);
 export const clone = (v) => structuredClone(v);
 export const isRecord = (v) =>
@@ -86,76 +83,11 @@ function rows(doc) {
 }
 export function validateSource(name, data) {
   if (name === "ovhmeta") return validateOvhCatalog(data);
-  if (["kilo", "zen", "pi", "ovh"].includes(name)) {
+  if (["kilo", "ovh"].includes(name)) {
     rows(data);
     return data;
   }
-  const models = data?.opencode?.models;
-  if (
-    !models ||
-    typeof models !== "object" ||
-    Array.isArray(models) ||
-    Object.keys(models).length === 0
-  )
-    throw new Error("Missing OpenCode price/capability registry");
-  for (const [id, m] of Object.entries(models))
-    if (!id.trim() || !isRecord(m) || (m.id && id !== m.id))
-      throw new Error("Invalid registry model");
-  return data;
-}
-function metaIndex(sources) {
-  const result = new Map();
-  for (const source of ["official", "modelsdev", "pi"]) {
-    const data = sources[source]?.data;
-    if (!data) continue;
-    const a =
-      source === "pi"
-        ? rows(data)
-        : Object.entries(data.opencode.models).map(([id, m]) => ({ ...m, id }));
-    for (const m of a) {
-      const prior = result.get(m.id) || [];
-      prior.push({ source, data: m, fresh: sources[source].fresh === true });
-      result.set(m.id, prior);
-    }
-  }
-  return result;
-}
-// One evidence policy for listed, disappeared, and metadata-only Zen records.
-function zenEvidence(candidates, old, raw) {
-  const priced = candidates.filter(
-    (c) => priceClass(c.data.cost) !== "unknown",
-  );
-  const fresh = priced.filter((c) => c.fresh);
-  const pool = fresh.length ? fresh : priced;
-  const classes = pool.map((c) => priceClass(c.data.cost));
-  const preferred = pool[0] || candidates.find((c) => c.fresh) || candidates[0];
-  let metadata = preferred?.data || raw;
-  let evidence = preferred?.source || null;
-  let cost = metadata.cost;
-  let classification =
-    classes.includes("zero") && classes.includes("paid")
-      ? "conflict"
-      : classes.includes("paid")
-        ? "paid"
-        : classes.includes("zero")
-          ? "free"
-          : "unknown";
-  let verified = preferred?.fresh === true;
-  let retained = false;
-  // With no fresh monetary decision, preserve the last reconciliation verdict.
-  // A failed fetch cannot revive an old paid conflict OR resurrect superseded stale pricing.
-  if (
-    (classification === "unknown" || fresh.length === 0) &&
-    ["free", "paid", "conflict"].includes(old?.classification)
-  ) {
-    retained = true;
-    metadata = old.metadata;
-    evidence = old.evidence;
-    cost = old.cost;
-    classification = old.classification;
-    verified = false;
-  }
-  return { metadata, evidence, cost, classification, verified, retained };
+  throw new Error("Unknown metadata source");
 }
 // Snapshot provenance belongs to the selected record, not merely the latest source fetch.
 function metadataProvenance(source, sources, old, retained = false) {
@@ -201,13 +133,6 @@ function life(records, now) {
       ? "deprecated"
       : "active";
 }
-function evidenceSources(candidates) {
-  return candidates.map((c) => ({
-    source: c.source,
-    fresh: c.fresh,
-    price: priceClass(c.data.cost),
-  }));
-}
 /** No name/suffix/allowlist predicate exists in discovery. Every live ID is classified. */
 export function reconcile(
   sources,
@@ -216,7 +141,6 @@ export function reconcile(
 ) {
   const entries = {},
     changes = [],
-    metadata = metaIndex(sources),
     at = Date.parse(now);
   for (const service of Object.keys(PROVIDERS)) {
     const source = sources[service];
@@ -224,7 +148,6 @@ export function reconcile(
     for (const raw of live) {
       const key = recordKey(service, raw.id),
         old = previous.entries?.[key];
-      const candidates = service === "zen" ? metadata.get(raw.id) || [] : [];
       let meta, metaSource, classification, cost, fresh, provenance, retained;
       if (service === "kilo") {
         meta = raw;
@@ -257,41 +180,17 @@ export function reconcile(
         fresh = source.fresh === true && sourceMeta?.fresh === true && !!rich;
         retained = canRetain || (rich ? sourceMeta?.fresh !== true : source.fresh !== true);
         provenance = metadataProvenance(metaSource, sources, old, canRetain);
-      } else {
-        const decision = zenEvidence(candidates, old, raw);
-        meta = decision.metadata;
-        metaSource = decision.evidence;
-        cost = decision.cost;
-        classification = decision.classification;
-        fresh = source.fresh === true && decision.verified;
-        provenance = metadataProvenance(
-          metaSource,
-          sources,
-          old,
-          decision.retained,
-        );
-        retained = decision.retained || !decision.verified;
       }
-      const records = [
-        raw,
-        meta,
-        ...candidates.filter((c) => c.fresh).map((c) => c.data),
-      ];
+      const records = [raw, meta];
       const output = array(
         service === "ovh"
           ? meta.architecture?.output_modalities
-          : service === "zen"
-          ? meta.modalities?.output
           : raw.architecture?.output_modalities,
       );
       const advertisedType = service !== "kilo" ? meta.type : raw.type;
       const type =
         typeof advertisedType === "string" && advertisedType
           ? advertisedType
-          : service === "zen"
-            ? output.includes("image")
-              ? "image"
-              : "chat"
             : output.includes("text")
               ? "chat"
               : output.includes("image")
@@ -317,12 +216,8 @@ export function reconcile(
         metadataRetained: retained,
         fresh,
         evidence: metaSource,
-        evidenceSources: evidenceSources(candidates),
-        retirementDates: deadlines([
-          raw,
-          meta,
-          ...candidates.map((c) => c.data),
-        ]),
+        evidenceSources: [],
+        retirementDates: deadlines([raw, meta]),
         wasFree: classification === "free" || old?.wasFree === true,
         firstSeen: old?.firstSeen || now,
         lastListed: source.fresh ? now : old?.lastListed || now,
@@ -335,13 +230,8 @@ export function reconcile(
     // Preserve every historical record. Absence is NOT proof of retirement.
     for (const [key, old] of Object.entries(previous.entries || {})) {
       if (old.service !== service || entries[key]) continue;
-      const candidates = service === "zen" ? metadata.get(old.id) || [] : [];
-      const decision =
-        service === "zen" ? zenEvidence(candidates, old, old.raw) : null;
-      const meta = decision?.metadata || old.metadata;
-      const records = candidates.some((c) => c.fresh)
-        ? [meta, ...candidates.filter((c) => c.fresh).map((c) => c.data)]
-        : [old.raw, meta];
+      const meta = old.metadata;
+      const records = [old.raw, meta];
       // No explicit active declaration: an omitted status cannot erase known retirement.
       const retired =
         life(records, at) === "retired" ||
@@ -352,36 +242,10 @@ export function reconcile(
       entries[key] = {
         ...clone(old),
         listingOrigin: listingOrigin(old, previous),
-        ...(decision
-          ? {
-              metadata: clone(meta),
-              cost: clone(decision.cost),
-              evidence: decision.evidence,
-              classification: decision.classification,
-              metadataProvenance: metadataProvenance(decision.evidence, sources, old, decision.retained),
-              metadataRetained: decision.retained || !decision.verified,
-              evidenceSources: evidenceSources(candidates),
-              name: typeof meta.name === "string" ? meta.name : old.name,
-              type: typeof meta.type === "string" ? meta.type : old.type,
-            }
-          : {}),
-        wasFree: old.wasFree || decision?.classification === "free",
-        retirementDates: deadlines([
-          old.raw,
-          meta,
-          ...candidates.map((c) => c.data),
-        ]),
-        ...(!decision
-          ? {
-              metadataRetained: true,
-              metadataProvenance: metadataProvenance(
-                old.evidence,
-                sources,
-                old,
-                true,
-              ),
-            }
-          : {}),
+        wasFree: old.wasFree,
+        retirementDates: deadlines([old.raw, meta]),
+        metadataRetained: true,
+        metadataProvenance: metadataProvenance(old.evidence, sources, old, true),
         fresh: false,
         listed: source?.fresh ? false : old.listed,
         lifecycle: retired
@@ -392,42 +256,6 @@ export function reconcile(
         updatedAt: now,
       };
     }
-  }
-  // Preserve metadata-free candidates even if a second source disputes their price.
-  for (const [id, candidates] of metadata) {
-    const key = recordKey("zen", id);
-    if (entries[key]) continue;
-    if (!candidates.some((c) => priceClass(c.data.cost) === "zero")) continue;
-    const decision = zenEvidence(candidates, previous.entries?.[key], { id });
-    const meta = decision.metadata;
-    entries[key] = {
-      service: "zen",
-      id,
-      name: typeof meta.name === "string" ? meta.name : id,
-      type: typeof meta.type === "string" ? meta.type : "chat",
-      classification: decision.classification,
-      lifecycle:
-        life(
-          candidates.map((c) => c.data),
-          at,
-        ) === "retired"
-          ? "retired"
-          : "not-listed",
-      listed: false,
-      listingOrigin: "metadata-only",
-      metadataProvenance: metadataProvenance(decision.evidence, sources, previous.entries?.[key], decision.retained),
-      metadataRetained: decision.retained || !decision.verified,
-      fresh: false,
-      evidence: decision.evidence,
-      evidenceSources: evidenceSources(candidates),
-      retirementDates: deadlines(candidates.map((c) => c.data)),
-      wasFree: true,
-      firstSeen: previous.entries?.[key]?.firstSeen || now,
-      updatedAt: now,
-      raw: { id },
-      metadata: clone(meta),
-      cost: clone(decision.cost),
-    };
   }
   for (const [key, e] of Object.entries(entries)) {
     const old = previous.entries?.[key];
@@ -631,7 +459,7 @@ export class Catalog {
         ? gunzipSync(buf).toString("utf8")
         : buf.toString("utf8");
       const state = JSON.parse(text);
-      this.state = validateState(state);
+      this.state = validateState(migrateCatalogState(state));
     } catch (error) {
       if (error.code !== "ENOENT") this.cacheWarning = String(error);
     }
@@ -658,7 +486,7 @@ export class Catalog {
             headers: {
               accept: "application/json",
               "cache-control": "no-cache",
-              "user-agent": "pi-free-catalog/0.1.6",
+              "user-agent": "pi-free-catalog/0.1.8",
             },
           });
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -720,6 +548,7 @@ export class Catalog {
     return this.state;
   }
   assertUsable(service, id) {
+    if (!Object.hasOwn(PROVIDERS, service)) throw new Error("Unknown free provider");
     const e = this.state.entries[recordKey(service, id)];
     if (
       !e ||

@@ -19,8 +19,8 @@ const { session } = await createAgentSession({ cwd, agentDir, resourceLoader: lo
 try {
   await session.bindExtensions({ mode: 'print', uiContext: { setStatus() {}, notify() {} }, onError: e => errors.push(e) });
   const models = session.modelRuntime.getAllModels();
-  for (const [provider, count] of [['free-kilo',17],['free-zen',10],['free-ovh',10]]) assert.equal(models.filter(m => m.provider === provider).length, count);
-  assert.equal(models.find(m => m.provider === 'free-zen' && m.id === 'jev-1.13-free').type, 'classifier');
+  for (const [provider, count] of [['free-kilo',17],['free-ovh',10]]) assert.equal(models.filter(m => m.provider === provider).length, count);
+  assert.ok(!models.some(m => m.provider === 'free-zen'));
   assert.equal(catalogs, 1); assert.deepEqual(errors, []);
-  console.log('Clean installed-artifact Pi loader: PASS; three providers and classifier; one mocked Pages GET, no direct-source requests, zero inference.');
+  console.log('Clean installed-artifact Pi loader: PASS; exactly two providers, no retired provider; one mocked Pages GET, no direct-source requests, zero inference.');
 } finally { await session.extensionRunner.emit({ type: 'session_shutdown' }); session.dispose(); }

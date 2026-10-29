@@ -62,7 +62,7 @@ for (const mutate of [
 ]) {
   test(`invalid persisted entry is rejected: ${mutate}`, () => {
     const s = state();
-    mutate(s.entries[recordKey('zen', 'beam-free')]);
+    mutate(s.entries[recordKey('kilo', 'thinkingmachines/inkling-small:free')]);
     assert.throws(() => validateState(s));
   });
 }
@@ -89,57 +89,23 @@ for (const value of [null, true, 12, 'wrong', {}, []]) {
     assert.ok(registrations(s, 'kilo').some((m) => m.id === row.id));
   });
 }
-test('cached price disagreement remains blocked when every catalog is offline', async () => {
-  const d = structuredClone(fixtures);
-  d.modelsdev.opencode.models['beam-free'].cost.input = 1;
-  const c = new Catalog({ fetch: fetcher(d) });
-  await c.refresh();
-  assert.equal(
-    c.state.entries[recordKey('zen', 'beam-free')].classification,
-    'conflict',
-  );
-  c.fetcher = async () => {
-    throw new Error('offline');
-  };
-  await c.refresh();
-  assert.equal(
-    c.state.entries[recordKey('zen', 'beam-free')].classification,
-    'conflict',
-  );
-  assert.throws(() => c.assertUsable('zen', 'beam-free'));
-});
-test('fresh complete zero prices can supersede stale paid evidence without inventing free evidence', () => {
-  const d = structuredClone(fixtures);
-  d.modelsdev.opencode.models['beam-free'].cost.input = 1;
-  const snapshots = sources(d);
-  snapshots.modelsdev.fresh = false;
-  assert.equal(
-    reconcile(snapshots).entries[recordKey('zen', 'beam-free')].classification,
-    'free',
-  );
-});
+
+
 test('cached-free models with no retirement remain callable arbitrarily later without network', () => {
   const c = new Catalog({ now: () => Date.parse('2199-01-01') });
   c.state = state();
-  assert.doesNotThrow(() => c.assertUsable('zen', 'beam-free'));
+  assert.doesNotThrow(() => c.assertUsable('kilo', 'thinkingmachines/inkling-small:free'));
 });
-test('retirement deadline in a secondary registry also blocks dispatch locally', () => {
-  const d = structuredClone(fixtures);
-  d.modelsdev.opencode.models['beam-free'].retirement_date =
-    '2099-01-01T00:00:00Z';
-  const c = new Catalog({ now: () => Date.parse('2099-01-02') });
-  c.state = reconcile(sources(d), {}, '2098-01-01T00:00:00Z');
-  assert.throws(() => c.assertUsable('zen', 'beam-free'), /retirement/);
-});
+
 test('fresh corrected retirement metadata clears the previous future deadline', () => {
   const d = structuredClone(fixtures);
-  d.official.opencode.models['beam-free'].retirement_date =
+  d.kilo.data.find(m=>m.id==='thinkingmachines/inkling-small:free').retirement_date =
     '2099-01-01T00:00:00Z';
   const old = reconcile(sources(d), {}, '2098-01-01T00:00:00Z');
-  delete d.official.opencode.models['beam-free'].retirement_date;
+  delete d.kilo.data.find(m=>m.id==='thinkingmachines/inkling-small:free').retirement_date;
   const c = new Catalog({ now: () => Date.parse('2100-01-01') });
   c.state = reconcile(sources(d), old, '2100-01-01T00:00:00Z');
-  assert.doesNotThrow(() => c.assertUsable('zen', 'beam-free'));
+  assert.doesNotThrow(() => c.assertUsable('kilo', 'thinkingmachines/inkling-small:free'));
 });
 test('thinking hooks obtain a consistent current level after an awaited original hook', async () => {
   const catalog = new Catalog();
@@ -151,8 +117,8 @@ test('thinking hooks obtain a consistent current level after an awaited original
   });
   const hook = requestPayload({
     catalog,
-    service: 'zen',
-    id: 'beam-free',
+    service: 'kilo',
+    id: 'thinkingmachines/inkling-small:free',
     getSelection: () => 'auto',
     piLevel: 'high',
     getPiLevel: () => level,
@@ -161,17 +127,17 @@ test('thinking hooks obtain a consistent current level after an awaited original
       return { ...payload, temperature: 0.2 };
     },
   });
-  const promise = hook({ model: 'beam-free', tools: [{ name: 'read' }] });
+  const promise = hook({ model: 'thinkingmachines/inkling-small:free', tools: [{ name: 'read' }] });
   level = 'low';
   release();
   const body = await promise;
-  assert.equal(body.reasoning_effort, 'low');
+  assert.equal(body.reasoning.effort, 'low');
   assert.equal(body.temperature, 0.2);
   assert.deepEqual(body.tools, [{ name: 'read' }]);
 });
 test('native prototype-property names are rejected unless explicitly advertised', () => {
   const s = state(),
-    e = s.entries[recordKey('zen', 'beam-free')];
+    e = s.entries[recordKey('kilo', 'thinkingmachines/inkling-small:free')];
   for (const value of ['constructor', '__proto__', 'toString'])
     assert.throws(() => selectThinking(e, s, value), /Unsupported native/);
 });
@@ -256,7 +222,7 @@ test('version metadata matches the manifest without changing anonymous authentic
     anonymousHeaders('kilo', 's')['User-Agent'],
     new RegExp(pkg.version.replaceAll('.', '\\.')),
   );
-  assert.equal(anonymousHeaders('zen', 's').Authorization, 'Bearer public');
+  assert.equal(anonymousHeaders('kilo', 's').Authorization, undefined);
 });
 test('positive underflow is still paid even when another required base price is absent', () =>
   assert.equal(priceClass({ input: '1e-9999' }), 'paid'));
@@ -296,26 +262,4 @@ test('all registered Pi event names are present in the public host event contrac
   );
   for (const [, name] of source.matchAll(/pi\.on\(\s*["']([^"']+)["']/g))
     assert.ok(supported.has(name), name);
-});
-
-test('an outage preserves the last free decision when newer zero evidence had superseded an older paid source', async () => {
-  const d = structuredClone(fixtures);
-  d.modelsdev.opencode.models['beam-free'].cost.input = 1;
-  const snapshots = sources(d);
-  snapshots.modelsdev.fresh = false;
-  const c = new Catalog();
-  c.state = reconcile(snapshots);
-  assert.equal(
-    c.state.entries[recordKey('zen', 'beam-free')].classification,
-    'free',
-  );
-  c.fetcher = async () => {
-    throw new Error('Every source is offline');
-  };
-  await c.refresh();
-  assert.equal(
-    c.state.entries[recordKey('zen', 'beam-free')].classification,
-    'free',
-  );
-  assert.doesNotThrow(() => c.assertUsable('zen', 'beam-free'));
 });

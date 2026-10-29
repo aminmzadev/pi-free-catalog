@@ -50,8 +50,8 @@ globalThis.fetch = async (input, init = {}) => {
   const service =
     url.hostname === 'api.kilo.ai'
       ? 'kilo'
-      : url.hostname === 'opencode.ai'
-        ? 'zen'
+      : url.hostname === 'oai.endpoints.kepler.ai.cloud.ovh.net'
+        ? 'ovh'
         : null;
   const headers = new Headers(
     init.headers || (input instanceof Request ? input.headers : undefined),

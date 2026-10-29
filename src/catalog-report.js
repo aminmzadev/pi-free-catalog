@@ -13,10 +13,6 @@ import { piModel, thinkingProfile, thinkingFields } from "./models.js";
 
 export const SOURCE_NAMES = Object.freeze({
   kilo: "Kilo provider list",
-  zen: "Zen provider list",
-  official: "Official OpenCode metadata",
-  modelsdev: "models.dev OpenCode metadata",
-  pi: "Pi OpenCode metadata",
   ovh: "OVH runtime model list",
   ovhmeta: "OVH anonymous entitlement and capability metadata",
 });
@@ -109,13 +105,6 @@ function priceReason(e) {
   if (e.service === "ovh") return e.classification === "free"
     ? "Documented anonymous entitlement accepted; commercial prices do not apply to this no-account lane"
     : "Anonymous entitlement is not established by the selected official metadata";
-  if (e.service !== "kilo")
-    return {
-      free: "Free pricing evidence accepted",
-      paid: "Positive monetary charge recorded",
-      unknown: "Insufficient pricing evidence; free access is not established",
-      conflict: "Conflicting zero-price and positive-charge evidence",
-    }[e.classification];
   if (e.classification === "free")
     return "Kilo explicitly marks this model free; no positive charge overrides that flag";
   if (e.classification === "paid") return "Positive monetary charge recorded";
@@ -208,23 +197,6 @@ export function modelReport(e, state, { health = {}, now = Date.now() } = {}) {
       found = true;
     }
   }
-  for (const key of ["official", "modelsdev", "pi"]) {
-    const sourceRecord = state.sources?.[key];
-    const doc = sourceRecord?.data;
-    const other =
-      key === "pi"
-        ? (Array.isArray(doc) ? doc : doc?.data || []).find(
-            (m) => m.id === e.id,
-          )
-        : doc?.opencode?.models?.[e.id];
-    const facts = declarations(other);
-    if (e.service === "zen" && facts.length) {
-      lines.push(
-        `  ${sourceName(key)} record (document fetched ${stamp(sourceRecord.fetchedAt)}): ${facts.join("; ")}`,
-      );
-      found = true;
-    }
-  }
   if (e.lifecycle === "retired") {
     lines.push("  Catalog retains an explicit retirement decision.");
     found = true;
@@ -271,7 +243,6 @@ export function modelReport(e, state, { health = {}, now = Date.now() } = {}) {
       "openai-completions",
       "openai-responses",
       "anthropic-messages",
-      "typesafe-system-one",
     ].includes(model.api)
   )
     lines.push(

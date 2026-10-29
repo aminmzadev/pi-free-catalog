@@ -1,4 +1,5 @@
 import { deploymentURL } from './deployment-path.mjs';
+import { LEGACY_URL, migrateLegacySnapshot } from '../../src/legacy-snapshot.js';
 // Backend transport/collector. Contract semantics are shared with the shipped client.
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -10,8 +11,8 @@ export class FetchFailure extends Error {
   constructor(code, httpStatus = null) { super(code); this.code = code; this.httpStatus = httpStatus; }
 }
 export async function readJSON(url, { fetcher = globalThis.fetch, maxBytes = MAX_SOURCE_BYTES, timeoutMs = 20000, cacheBust = false } = {}) {
-  assert.ok(Object.values(SOURCES).includes(url) || url === PREVIOUS_URL, 'URL outside fixed allowlist');
-  assert.ok(!cacheBust || url === PREVIOUS_URL, 'Cache busting is limited to the fixed Pages endpoint');
+  assert.ok(Object.values(SOURCES).includes(url) || url === PREVIOUS_URL || url === LEGACY_URL, 'URL outside fixed allowlist');
+  assert.ok(!cacheBust || url === PREVIOUS_URL || url === LEGACY_URL, 'Cache busting is limited to the fixed Pages endpoint');
   // Cache-Control alone does not evict an already-warm GitHub Pages CDN entry.
   // Only this backend-generated UUID query is permitted; callers cannot supply a URL/query.
   return readAllowedJSON(url, {fetcher,maxBytes,timeoutMs,cacheBust});
@@ -47,8 +48,17 @@ export async function loadPrevious({ bootstrap = false, fetcher = globalThis.fet
     assert.ok(!bootstrap, 'Bootstrap is forbidden when a previous snapshot exists');
     return validateSnapshot(data,{now,expectedRules});
   } catch (error) {
-    if (bootstrap && error instanceof FetchFailure && error.httpStatus === 404) return null;
-    throw error; // Never silently cold-start after corruption, network errors, incompatible rules or HTTP 5xx.
+    if (!(error instanceof FetchFailure) || error.httpStatus !== 404) throw error;
+    // A new v2 endpoint may start ONLY from the explicitly reviewed v1 migration.
+    // Invalid/unavailable existing v2 data never falls back or resets history.
+    try {
+      const {data}=await readJSON(LEGACY_URL,{fetcher,maxBytes:MAX_SNAPSHOT_BYTES,cacheBust:true});
+      assert.ok(!bootstrap,'Bootstrap is forbidden when a legacy snapshot exists');
+      return migrateLegacySnapshot(data,{expectedRules,now});
+    } catch (legacyError) {
+      if(bootstrap&&legacyError instanceof FetchFailure&&legacyError.httpStatus===404)return null;
+      throw legacyError;
+    }
   }
 }
 export function largeChanges(previous, sources, state, now) {
@@ -61,7 +71,7 @@ export function largeChanges(previous, sources, state, now) {
   // Apply already-known deadlines at the current time before comparing eligibility counts.
   const baseline = summary(reconcile(previous.sources, asState(previous), now));
   const next = summary(state);
-  for (const name of ['kilo','zen','ovh']) if (baseline[name].free > 0 && next[name].free < baseline[name].free / 2)
+  for (const name of ['kilo','ovh']) if (baseline[name].free > 0 && next[name].free < baseline[name].free / 2)
     changes.push({kind:'eligible-models',name,before:baseline[name].free,after:next[name].free});
   return changes;
 }
@@ -85,7 +95,7 @@ export async function collect({ previous = null, now = new Date().toISOString(),
   const fresh = Object.values(sources).filter(s => s.fresh).length; assert.ok(fresh > 0, 'All sources failed; preserve previous deployment');
   const state = reconcile(sources,previous ? asState(previous) : {},now);
   const changes = largeChanges(previous,sources,state,now);
-  const snapshot = seal({schemaVersion:1,generatedAt:now,producer,rulesHash:expectedRules,sources,catalog:{entries:state.entries,changes:state.changes,history:state.history},summary:summary(state),quality:{status:fresh===SOURCE_NAMES.length?'fresh':'degraded',freshSources:fresh,retainedSources:SOURCE_NAMES.length-fresh,largeChanges:changes,largeChangesApproved:allowLargeChanges}});
+  const snapshot = seal({schemaVersion:2,generatedAt:now,producer,rulesHash:expectedRules,sources,catalog:{entries:state.entries,changes:state.changes,history:state.history},summary:summary(state),quality:{status:fresh===SOURCE_NAMES.length?'fresh':'degraded',freshSources:fresh,retainedSources:SOURCE_NAMES.length-fresh,largeChanges:changes,largeChangesApproved:allowLargeChanges}});
   if (changes.length && !allowLargeChanges) {
     const error = new Error('Large source/eligibility decline: review rejected-candidate.json before manual approval'); error.candidate=snapshot; throw error;
   }

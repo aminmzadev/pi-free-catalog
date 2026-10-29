@@ -12,7 +12,7 @@ import { snapshotFixture, pagesFetcher, isPages } from './snapshot-helper.mjs';
 const at='2026-10-22T00:00:00.000Z', clock=Date.parse(at);
 const snapshot=await snapshotFixture();
 const local=()=>reconcile(sources(),{},at);
-const entry=recordKey('zen','beam-free');
+const entry=recordKey('kilo','thinkingmachines/inkling-small:free');
 function client(fetch,extra={}){return new PagesCatalog({fetch,now:()=>clock,...extra});}
 
 test('healthy Pages snapshot requires one anonymous GET, controlled cache buster, and no direct requests',async()=>{
@@ -20,7 +20,7 @@ test('healthy Pages snapshot requires one anonymous GET, controlled cache buster
   urls.push(String(url));const parsed=new URL(url);assert.equal(parsed.origin+parsed.pathname,PAGES_URL);assert.deepEqual([...parsed.searchParams.keys()],['catalog_read']);assert.match(parsed.searchParams.get('catalog_read'),/^[a-f0-9-]{36}$/);
   assert.equal(init.method,'GET');assert.equal(init.redirect,'error');assert.equal(init.credentials,'omit');assert.equal(init.cache,'no-store');assert.deepEqual(Object.keys(init.headers).sort(),['accept','cache-control','user-agent']);return Response.json(snapshot);
  });
- await c.refresh();assert.equal(urls.length,1);assert.equal(c.lastRefresh.transport,'pages');assert.equal(c.state.refreshedAt,at);assert.equal(c.state.delivery.snapshotGeneratedAt,at);assert.equal(c.state.sources.zen.fetchedAt,at);assert.equal(c.state.entries[entry].classification,'free');
+ await c.refresh();assert.equal(urls.length,1);assert.equal(c.lastRefresh.transport,'pages');assert.equal(c.state.refreshedAt,at);assert.equal(c.state.delivery.snapshotGeneratedAt,at);assert.equal(c.state.sources.kilo.fetchedAt,at);assert.equal(c.state.entries[entry].classification,'free');
 });
 test('shared contract fingerprints the unchanged modules and validates a backend-compatible fixture',async()=>{
  validateSnapshot(snapshot,{expectedRules:await rulesHash(),now:clock});assert.equal(snapshot.rulesHash,await rulesHash());
@@ -32,23 +32,23 @@ test('each explicit refresh uses a new cache-busting key',async()=>{
  const urls=[];const c=client(pagesFetcher(snapshot,{trace:urls}));await c.refresh();await c.refresh();assert.equal(new Set(urls).size,2);
 });
 for(const [label,respond]of[
- ['HTTP503',()=>new Response(null,{status:503})],['HTML',()=>new Response('<html>not a catalog</html>')],['malformed JSON',()=>new Response('{')],['unsupported version',()=>Response.json({...snapshot,schemaVersion:999})],['wrong repository',()=>Response.json(seal({...snapshot,producer:{...snapshot.producer,repository:'fork/other'}}))],['wrong rules hash',()=>Response.json(seal({...snapshot,rulesHash:'b'.repeat(64)}))],['future timestamp',()=>Response.json(seal({...snapshot,generatedAt:'2099-01-01T00:00:00.000Z'}))],['invalid integrity',()=>Response.json({...snapshot,integrity:{algorithm:'sha256',payloadHash:'0'.repeat(64)}})],['wrong source URL',()=>{const s=structuredClone(snapshot);s.sources.zen.url='https://evil.invalid';return Response.json(seal(s));}],['omitted inventory ID',()=>{const s=structuredClone(snapshot);delete s.catalog.entries[entry];return Response.json(seal(s));}],
+ ['HTTP503',()=>new Response(null,{status:503})],['HTML',()=>new Response('<html>not a catalog</html>')],['malformed JSON',()=>new Response('{')],['unsupported version',()=>Response.json({...snapshot,schemaVersion:999})],['wrong repository',()=>Response.json(seal({...snapshot,producer:{...snapshot.producer,repository:'fork/other'}}))],['wrong rules hash',()=>Response.json(seal({...snapshot,rulesHash:'b'.repeat(64)}))],['future timestamp',()=>Response.json(seal({...snapshot,generatedAt:'2099-01-01T00:00:00.000Z'}))],['invalid integrity',()=>Response.json({...snapshot,integrity:{algorithm:'sha256',payloadHash:'0'.repeat(64)}})],['wrong source URL',()=>{const s=structuredClone(snapshot);s.sources.kilo.url='https://evil.invalid';return Response.json(seal(s));}],['omitted inventory ID',()=>{const s=structuredClone(snapshot);delete s.catalog.entries[entry];return Response.json(seal(s));}],
 ])test('invalid Pages safely recovers through existing direct rules: '+label,async()=>{
- const urls=[];const delegate=fetcher();const c=client(async(url,init)=>{urls.push(String(url));return isPages(url)?respond():delegate(url,init);});await c.refresh();assert.equal(c.lastRefresh.transport,'direct');assert.equal(urls.length,8);assert.equal(c.state.entries[entry].classification,'free');assert.deepEqual(new Set(urls.filter(u=>!isPages(u))),new Set(Object.values(SOURCES)));
+ const urls=[];const delegate=fetcher();const c=client(async(url,init)=>{urls.push(String(url));return isPages(url)?respond():delegate(url,init);});await c.refresh();assert.equal(c.lastRefresh.transport,'direct');assert.equal(urls.length,4);assert.equal(c.state.entries[entry].classification,'free');assert.deepEqual(new Set(urls.filter(u=>!isPages(u))),new Set(Object.values(SOURCES)));
 });
 test('unavailable Pages plus failed direct refresh preserves exact in-memory and on-disk cache',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'pages-preserve-'));try{
   const file=join(dir,'catalog.json'),prior=local();await writeFile(file,gzipSync(JSON.stringify(prior)));const bytes=await readFile(file);
-  const c=client(async()=>{throw Error('offline');},{file});await c.load();const original=c.state;await c.refresh();assert.equal(c.state,original);assert.deepEqual(await readFile(file),bytes);c.assertUsable('zen','beam-free');assert.equal(c.lastRefresh.transport,'cache');assert.match(c.refreshWarning,/saved catalog/);
+  const c=client(async()=>{throw Error('offline');},{file});await c.load();const original=c.state;await c.refresh();assert.equal(c.state,original);assert.deepEqual(await readFile(file),bytes);c.assertUsable('kilo','thinkingmachines/inkling-small:free');assert.equal(c.lastRefresh.transport,'cache');assert.match(c.refreshWarning,/saved catalog/);
  }finally{await rm(dir,{recursive:true,force:true});}
 });
 test('no cache plus no network never invents models or persists an empty replacement',async()=>{
- let saved=0;const c=client(async()=>{throw Error('offline');},{file:'unused',persist:async()=>saved++});await c.refresh();assert.equal(saved,0);assert.equal(Object.keys(c.state.entries).length,0);assert.equal(c.lastRefresh.transport,'empty');assert.throws(()=>c.assertUsable('zen','beam-free'));
+ let saved=0;const c=client(async()=>{throw Error('offline');},{file:'unused',persist:async()=>saved++});await c.refresh();assert.equal(saved,0);assert.equal(Object.keys(c.state.entries).length,0);assert.equal(c.lastRefresh.transport,'empty');assert.throws(()=>c.assertUsable('kilo','thinkingmachines/inkling-small:free'));
 });
 test('Pages timeout is bounded even when a fetch mock ignores AbortSignal; direct recovery still works',async()=>{
  // AbortSignal.timeout is unrefed; keep the fixture process alive through slow setup.
  const hold=setTimeout(()=>{},10000),delegate=fetcher();try{
-  const c=client((url,init)=>isPages(url)?new Promise(()=>{}):delegate(url,init),{pagesTimeout:10});await c.refresh();assert.equal(c.lastRefresh.transport,'direct');c.assertUsable('zen','beam-free');
+  const c=client((url,init)=>isPages(url)?new Promise(()=>{}):delegate(url,init),{pagesTimeout:10});await c.refresh();assert.equal(c.lastRefresh.transport,'direct');c.assertUsable('kilo','thinkingmachines/inkling-small:free');
  }finally{clearTimeout(hold);}
 });
 test('direct-source timeouts cannot strand startup when fetch ignores cancellation',async()=>{
@@ -68,11 +68,11 @@ test('degraded but recent Pages preserves actual retained-source timestamps and 
  const s=await snapshotFixture({retained:['ovhmeta']});const c=client(pagesFetcher(s));await c.refresh();assert.equal(c.lastRefresh.transport,'pages');assert.equal(c.state.sources.ovhmeta.fresh,false);assert.equal(c.state.sources.ovhmeta.fetchedAt,s.sources.ovhmeta.fetchedAt);assert.match(c.state.sources.ovhmeta.error,/Retained/);
 });
 test('soft source age triggers direct recovery but never disables existing cached inference',async()=>{
- const urls=[],delegate=fetcher();const c=client(async(url,init)=>{urls.push(String(url));return isPages(url)?Response.json(snapshot):delegate(url,init);},{now:()=>clock+3600000});await c.refresh();assert.equal(c.lastRefresh.transport,'direct');assert.equal(urls.length,8);
- const d=client(async url=>isPages(url)?Response.json(snapshot):new Response(null,{status:503}),{now:()=>clock+3600000});d.state=local();const old=d.state;await d.refresh();assert.equal(d.state,old);d.assertUsable('zen','beam-free');
+ const urls=[],delegate=fetcher();const c=client(async(url,init)=>{urls.push(String(url));return isPages(url)?Response.json(snapshot):delegate(url,init);},{now:()=>clock+3600000});await c.refresh();assert.equal(c.lastRefresh.transport,'direct');assert.equal(urls.length,4);
+ const d=client(async url=>isPages(url)?Response.json(snapshot):new Response(null,{status:503}),{now:()=>clock+3600000});d.state=local();const old=d.state;await d.refresh();assert.equal(d.state,old);d.assertUsable('kilo','thinkingmachines/inkling-small:free');
 });
 test('cold install can keep a validated stale Pages last-known-good if all direct requests fail',async()=>{
- const c=client(async url=>isPages(url)?Response.json(snapshot):new Response(null,{status:503}),{now:()=>clock+3600000});await c.refresh();assert.equal(c.lastRefresh.transport,'stale-pages');assert.equal(c.state.sources.zen.fetchedAt,at);c.assertUsable('zen','beam-free');assert.ok(c.refreshWarning);
+ const c=client(async url=>isPages(url)?Response.json(snapshot):new Response(null,{status:503}),{now:()=>clock+3600000});await c.refresh();assert.equal(c.lastRefresh.transport,'stale-pages');assert.equal(c.state.sources.kilo.fetchedAt,at);c.assertUsable('kilo','thinkingmachines/inkling-small:free');assert.ok(c.refreshWarning);
 });
 test('local-only records, firstSeen, and history survive Pages adoption without remaining falsely listed',async()=>{
  const old=local(),key=recordKey('kilo','local-history-only');old.entries[key]={...structuredClone(old.entries[recordKey('kilo','reflection/beam-free')]),id:'local-history-only',raw:{id:'local-history-only'},firstSeen:'2026-10-01T00:00:00.000Z'};
@@ -103,10 +103,10 @@ test('request and response limits reject SSRF, credential URLs, oversized bodies
  const hold=setTimeout(()=>{},10000);try{let cancelledReader=false;await assert.rejects(metadataResponse(async()=>({status:200,body:{getReader:()=>({read:()=>new Promise(()=>{}),cancel:async()=>{cancelledReader=true;}})}}),PAGES_URL,{pages:true,timeout:10}));assert.ok(cancelledReader);}finally{clearTimeout(hold);}
 });
 test('ensureFresh, request guards, elapsed time and OVH pacing access never refresh metadata',async()=>{
- let count=0;const c=client(async()=>{count++;return Response.json(snapshot);});await c.refresh();const pacer=c.ovhPacer;for(let i=0;i<4;i++){await c.ensureFresh();c.assertUsable('zen','beam-free');}assert.equal(count,1);assert.equal(c.ovhPacer,pacer);
+ let count=0;const c=client(async()=>{count++;return Response.json(snapshot);});await c.refresh();const pacer=c.ovhPacer;for(let i=0;i<4;i++){await c.ensureFresh();c.assertUsable('kilo','thinkingmachines/inkling-small:free');}assert.equal(count,1);assert.equal(c.ovhPacer,pacer);
 });
 test('new paid Pages evidence overrides local free history instead of unioning free lists',async()=>{
- const data=structuredClone(fixtures);for(const key of ['official','modelsdev'])data[key].opencode.models['beam-free'].cost={input:1,output:2,cache_read:1};const s=await snapshotFixture({data});const c=client(pagesFetcher(s));c.state=local();assert.equal(c.state.entries[entry].classification,'free');await c.refresh();assert.notEqual(c.state.entries[entry].classification,'free');assert.throws(()=>c.assertUsable('zen','beam-free'));
+ const data=structuredClone(fixtures);const m=data.kilo.data.find(m=>m.id==='thinkingmachines/inkling-small:free');m.isFree=false;m.pricing={prompt:1,completion:2};const s=await snapshotFixture({data});const c=client(pagesFetcher(s));c.state=local();assert.equal(c.state.entries[entry].classification,'free');await c.refresh();assert.notEqual(c.state.entries[entry].classification,'free');assert.throws(()=>c.assertUsable('kilo','thinkingmachines/inkling-small:free'));
 });
 test('HTTP-error body cleanup cannot hang the bounded refresh',async()=>{
  let cancelled=false;await assert.rejects(metadataResponse(async()=>({status:503,body:{cancel:()=>{cancelled=true;return new Promise(()=>{});}}}),PAGES_URL,{pages:true,timeout:10}),/503/);assert.ok(cancelled);

@@ -12,12 +12,8 @@ test('Kilo toggle variants preserve native instant/thinking, not fictional low/h
 test('Kilo effort mapping supports all advertised levels including max',()=>{
  const e=get('kilo','reflection/beam-free');for(const level of ['low','medium','high','xhigh','max'])assert.equal(selectThinking(e,s,level).reasoning.effort,level);assert.throws(()=>selectThinking(e,s,'off'));
 });
-test('Zen native effort values are emitted as reasoning_effort',()=>{
- const e=get('zen','beam-free');assert.deepEqual(selectThinking(e,s,'low'),{reasoning_effort:'low'});assert.deepEqual(selectThinking(e,s,'max'),{reasoning_effort:'max'});
-});
-test('Zen native none is preserved and mapped from Pi off without inventing a choice',()=>{
- const e=get('zen','nemotron-3.5-super-vl-free');assert.equal(selectThinking(e,s,'none').reasoning_effort,'none');assert.equal(selectThinking(e,s,'auto','off').reasoning_effort,'none');
-});
+
+
 test('future unfamiliar native variant stays selectable rather than silently discarded',()=>{
  const d=structuredClone(fixtures),m=d.kilo.data.find(m=>m.id==='reflection/beam-free');m.opencode.variants['new-ultra']={reasoning:{enabled:true,effort:'future-effort'},model:'paid-model'};
  const st=reconcile(sources(d)),e=st.entries[recordKey('kilo',m.id)];assert.deepEqual(selectThinking(e,st,'new-ultra'),{reasoning:{enabled:true,effort:'future-effort'}});
@@ -28,12 +24,12 @@ test('default preserves provider default and clears inherited thinking fields',(
  const e=get('kilo','reflection/beam-free');assert.deepEqual(selectThinking(e,s,'default'),{});assert.deepEqual(applyThinking({model:e.id,messages:[],reasoning_effort:'high',thinking:{type:'enabled'}},{}),{model:e.id,messages:[]});
 });
 test('missing advertised choices only permits provider default, not fabricated settings',()=>{
- const e=get('zen','nemotron-3.5-lightning-free');assert.equal(thinkingProfile(e,s).source,'provider-default-only');assert.deepEqual(selectThinking(e,s,'auto','high'),{});assert.throws(()=>selectThinking(e,s,'low'));
+ const e=get('kilo','kilo-auto/free');assert.equal(thinkingProfile(e,s).source,'provider-default-only');assert.deepEqual(selectThinking(e,s,'auto','high'),{});assert.throws(()=>selectThinking(e,s,'low'));
 });
 test('unknown required context/output fields have labelled fallback, do not hide model',()=>{
  const e=structuredClone(get('kilo','reflection/beam-free'));delete e.metadata.context_length;delete e.metadata.top_provider;delete e.metadata.max_completion_tokens;
  const m=piModel(e,s);assert.equal(m.contextWindow,8192);assert.equal(m.maxTokens,2048);assert.match(m.name,/unverified/);
 });
 test('live authoritative context is not replaced by generic guesses',()=>{
- assert.equal(piModel(get('zen','beam-free'),s).contextWindow,1048576);assert.equal(piModel(get('zen','glm-5.3-flash-free'),s).contextWindow,200000);
+ assert.equal(piModel(get('kilo','reflection/beam-free'),s).contextWindow,1048576);assert.equal(piModel(get('kilo','reflection/beam-free'),s).contextWindow,1048576);
 });

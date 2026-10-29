@@ -44,14 +44,14 @@ async function environment(run,{initialConfig,response=(_n,body)=>sse(body.model
 }
 
 test('real Pi: default OFF preserves original 429 and never sends a fallback request',async()=>environment(async x=>{
- const s=await x.start();await s.prompt('hello');assert.equal(x.wires.length,1);assert.equal(s.model.id,A);assert.equal(s.messages.filter(m=>m.role==='assistant').at(-1).stopReason,'error');await s.prompt('/free-ovh-pool status');assert.match(x.notices.at(-1),/OFF \(default\)/);assert.equal(x.metadata,8);assert.deepEqual(x.errors,[]);
+ const s=await x.start();await s.prompt('hello');assert.equal(x.wires.length,1);assert.equal(s.model.id,A);assert.equal(s.messages.filter(m=>m.role==='assistant').at(-1).stopReason,'error');await s.prompt('/free-ovh-pool status');assert.match(x.notices.at(-1),/OFF \(default\)/);assert.equal(x.metadata,4);assert.deepEqual(x.errors,[]);
 },{response:(_n,body)=>confirmed(body.model)}));
 test('real Pi: one confirmed rejection is not retried; handoff occurs at the NEXT inference boundary with thinking/model identity preserved',async()=>environment(async x=>{
  const s=await x.start();await x.configure(s);await s.prompt('/free-thinking high');const saved=await readFile(join(x.dir,'free-catalog/thinking.json'));
  // A target with a different saved control mode must not be silently selected.
  await s.setModel(s.modelRuntime.getModel('free-ovh',B));await s.prompt('/free-thinking high');await s.setModel(s.modelRuntime.getModel('free-ovh',A));
  await s.prompt('first request');assert.equal(x.wires.length,1);assert.equal(s.model.id,A);assert.equal(s.messages.filter(m=>m.role==='assistant').at(-1).stopReason,'error');
- const before=await readFile(join(x.dir,'free-catalog/thinking.json'));await s.prompt('continue without repeating actions');assert.equal(x.wires.length,2);assert.equal(x.wires[1].model,B);assert.equal(s.model.id,B);assert.equal(s.thinkingLevel,'high');assert.equal(x.wires[1].reasoning_effort,'high');assert.deepEqual(await readFile(join(x.dir,'free-catalog/thinking.json')),before);assert.ok(x.wires[1].messages.some(m=>m.role==='user'&&JSON.stringify(m.content).includes('first request')));assert.equal(x.metadata,8);assert.deepEqual(x.errors,[]);
+ const before=await readFile(join(x.dir,'free-catalog/thinking.json'));await s.prompt('continue without repeating actions');assert.equal(x.wires.length,2);assert.equal(x.wires[1].model,B);assert.equal(s.model.id,B);assert.equal(s.thinkingLevel,'high');assert.equal(x.wires[1].reasoning_effort,'high');assert.deepEqual(await readFile(join(x.dir,'free-catalog/thinking.json')),before);assert.ok(x.wires[1].messages.some(m=>m.role==='user'&&JSON.stringify(m.content).includes('first request')));assert.equal(x.metadata,4);assert.deepEqual(x.errors,[]);
 },{response:(n,body)=>n===1?confirmed(body.model):sse(body.model,{content:'continued'})}));
 for(const [label,response]of[
  ['unknown-scope429',()=>Response.json({error:{type:'rate_limit_error',message:'rate limit'}},{status:429,headers:{'retry-after':'60'}})],
@@ -60,10 +60,10 @@ for(const [label,response]of[
  ['invalid-request',()=>Response.json({error:{type:'invalid_request_error'}},{status:400})],
  ['network-failure',()=>{throw Error('mock disconnected');}],
 ])test('real Pi: '+label+' never switches models or retries the failed request',async()=>environment(async x=>{
- const s=await x.start();await x.configure(s);await s.prompt('test');assert.equal(x.wires.length,1);assert.equal(s.model.id,A);await s.prompt('explicit next request');assert.equal(x.wires.length,['authentication','invalid-request','network-failure'].includes(label)?2:1);assert.equal(s.model.id,A);assert.equal(s.messages.filter(m=>m.role==='assistant').at(-1).stopReason,'error');assert.equal(x.metadata,8);assert.deepEqual(x.errors,[]);
+ const s=await x.start();await x.configure(s);await s.prompt('test');assert.equal(x.wires.length,1);assert.equal(s.model.id,A);await s.prompt('explicit next request');assert.equal(x.wires.length,['authentication','invalid-request','network-failure'].includes(label)?2:1);assert.equal(s.model.id,A);assert.equal(s.messages.filter(m=>m.role==='assistant').at(-1).stopReason,'error');assert.equal(x.metadata,4);assert.deepEqual(x.errors,[]);
 },{response}));
 test('real Pi: an opted-in exhausted pool returns a clear error without another network attempt; configuration persists',async()=>environment(async x=>{
- let s=await x.start();await x.configure(s);await s.prompt('first');await s.prompt('second');assert.deepEqual(x.wires.map(b=>b.model),[A,B]);await s.prompt('third');assert.equal(x.wires.length,2);assert.match(s.messages.filter(m=>m.role==='assistant').at(-1).errorMessage,/No permitted compatible OVH model is ready/);assert.deepEqual(JSON.parse(await readFile(join(x.dir,'free-catalog/ovh-pool.json'))).models,[A,B]);await x.settings(s,{enabled:false});assert.equal(JSON.parse(await readFile(join(x.dir,'free-catalog/ovh-pool.json'))).enabled,false);assert.equal(x.metadata,8);assert.deepEqual(x.errors,[]);
+ let s=await x.start();await x.configure(s);await s.prompt('first');await s.prompt('second');assert.deepEqual(x.wires.map(b=>b.model),[A,B]);await s.prompt('third');assert.equal(x.wires.length,2);assert.match(s.messages.filter(m=>m.role==='assistant').at(-1).errorMessage,/No permitted compatible OVH model is ready/);assert.deepEqual(JSON.parse(await readFile(join(x.dir,'free-catalog/ovh-pool.json'))).models,[A,B]);await x.settings(s,{enabled:false});assert.equal(JSON.parse(await readFile(join(x.dir,'free-catalog/ovh-pool.json'))).enabled,false);assert.equal(x.metadata,4);assert.deepEqual(x.errors,[]);
 },{response:(_n,body)=>confirmed(body.model)}));
 test('real Pi: bounded waiting is visible and cancellable, and cancellation sends no request',async()=>environment(async x=>{
  const s=await x.start();await x.configure(s);await s.prompt('first');await s.prompt('second');await x.settings(s,{wait:60000});let timer;try{timer=setTimeout(()=>void s.abort(),30);await s.prompt('wait for pool');}finally{clearTimeout(timer);}assert.equal(x.wires.length,2);assert.equal(s.messages.filter(m=>m.role==='assistant').at(-1).stopReason,'aborted');assert.equal(x.statuses.has('free-ovh-pool-wait'),false);assert.deepEqual(x.errors,[]);
@@ -80,7 +80,7 @@ test('real Pi: reasoning-bearing read/write/edit/bash results survive fallback a
   const toolResults=s.messages.filter(m=>m.role==='toolResult');assert.equal(toolResults.length,4);for(const m of toolResults)assert.equal(m.isError,false);
   const before=JSON.stringify(toolResults);assert.equal(await readFile(join(x.dir,'output.txt'),'utf8'),'beta\n');assert.equal(await readFile(join(x.dir,'actions.txt'),'utf8'),'once\n');
   await s.prompt('Continue from the completed results; do not run any tools again.');assert.equal(s.model.id,B);assert.equal(s.thinkingLevel,'low');assert.equal(x.wires.length,3);assert.equal(x.wires[2].model,B);assert.equal(x.wires[2].reasoning_effort,'low');assert.equal(x.executions.length,4);assert.equal(JSON.stringify(s.messages.filter(m=>m.role==='toolResult')),before);assert.equal(await readFile(join(x.dir,'output.txt'),'utf8'),'beta\n');assert.equal(await readFile(join(x.dir,'actions.txt'),'utf8'),'once\n');
-  const wire=x.wires[2];assert.equal(wire.messages.filter(m=>m.role==='tool').length,4);assert.deepEqual(wire.messages.filter(m=>m.role==='assistant'&&m.tool_calls).flatMap(m=>m.tool_calls).map(t=>t.function.name).sort(),['bash','edit','read','write']);assert.equal(x.metadata,8);assert.deepEqual(x.errors,[]);
+  const wire=x.wires[2];assert.equal(wire.messages.filter(m=>m.role==='tool').length,4);assert.deepEqual(wire.messages.filter(m=>m.role==='assistant'&&m.tool_calls).flatMap(m=>m.tool_calls).map(t=>t.function.name).sort(),['bash','edit','read','write']);assert.equal(x.metadata,4);assert.deepEqual(x.errors,[]);
   // B is healthy; only A's cooldown expires. Recovery does not switch mid-stream or on a timer.
   mock.timers.tick(60000);assert.equal(s.model.id,B);
   await s.prompt('Use the recovered primary and retain all completed tool results.');
@@ -88,7 +88,7 @@ test('real Pi: reasoning-bearing read/write/edit/bash results survive fallback a
   assert.equal(x.executions.length,4);assert.equal(JSON.stringify(s.messages.filter(m=>m.role==='toolResult')),before);
   assert.equal(x.wires[3].messages.filter(m=>m.role==='tool').length,4);
   assert.equal(await readFile(join(x.dir,'output.txt'),'utf8'),'beta\n');assert.equal(await readFile(join(x.dir,'actions.txt'),'utf8'),'once\n');
-  assert.equal(x.metadata,8);assert.deepEqual(x.errors,[]);
+  assert.equal(x.metadata,4);assert.deepEqual(x.errors,[]);
  },{response:(n,body)=>n===1?sse(body.model,{role:'assistant',reasoning_content:'internal planning is expendable',tool_calls:calls.map(([name,args],index)=>({index,id:'call_'+name,type:'function',function:{name,arguments:JSON.stringify(args)}}))},'tool_calls'):n===2?confirmed(body.model):sse(body.model,{reasoning_content:'internal continuation is expendable',content:'All results retained; no tools rerun.'})});
 });
 test('real Pi: partial stream failures never switch mid-stream or retry against another pool model',async()=>{
@@ -111,7 +111,7 @@ test('real Pi: primary recovery during a healthy fallback stream waits for the N
    }
   });
   await s.prompt('healthy fallback stream');assert.ok(advanced);assert.equal(s.model.id,B);assert.equal(x.wires.length,2);
-  await s.prompt('next request must use primary');assert.deepEqual(x.wires.map(b=>b.model),[A,B,A]);assert.equal(s.model.id,A);assert.equal(s.thinkingLevel,'low');assert.equal(x.metadata,8);assert.deepEqual(x.errors,[]);
+  await s.prompt('next request must use primary');assert.deepEqual(x.wires.map(b=>b.model),[A,B,A]);assert.equal(s.model.id,A);assert.equal(s.thinkingLevel,'low');assert.equal(x.metadata,4);assert.deepEqual(x.errors,[]);
  },{response:(n,body)=>n===1?confirmed(body.model):n===2?new Response(new ReadableStream({start(c){controller=c;c.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({id:'healthy',model:B,choices:[{index:0,delta:{content:'healthy fallback'},finish_reason:'stop'}]})}\n\n`));}}),{headers:{'content-type':'text/event-stream'}}):sse(body.model,{content:'primary restored'})});
 });
 test('real Pi: recovery during bash execution fails back only for the following inference, with exactly one side effect',async()=>{
@@ -128,7 +128,7 @@ test('real Pi: recovery during bash execution fails back only for the following 
   assert.deepEqual(x.wires.map(b=>b.model),[A,B,A]);assert.equal(s.model.id,A);assert.equal(s.thinkingLevel,'low');
   assert.deepEqual(x.executions.map(e=>e.name),['bash']);assert.equal(await readFile(join(x.dir,'failback-once.txt'),'utf8'),'once\n');
   assert.equal(x.wires[2].messages.filter(m=>m.role==='tool').length,1);assert.ok(JSON.stringify(x.wires[2].messages).includes('perform bash once'));
-  assert.equal(x.metadata,8);assert.deepEqual(x.errors,[]);
+  assert.equal(x.metadata,4);assert.deepEqual(x.errors,[]);
  },{response:(n,body)=>n===1?confirmed(body.model):n===2?sse(body.model,{reasoning_content:'expendable internal plan',tool_calls:[{index:0,id:'call_failback_once',type:'function',function:{name:'bash',arguments:JSON.stringify({command:'printf "once\\n" >> failback-once.txt'})}}]},'tool_calls'):sse(body.model,{content:'completed once; primary restored'})});
 });
 
@@ -136,7 +136,7 @@ test('real Pi: captured OVH headers trigger one subsequent fallback and restore 
  await environment(async x=>{
   const s=await x.start();await x.configure(s);await s.prompt('first request');assert.equal(x.wires.length,1);assert.equal(s.model.id,A);
   await s.prompt('new request after observed quota');assert.deepEqual(x.wires.map(b=>b.model),[A,B]);assert.equal(s.model.id,B);assert.equal(s.thinkingLevel,'low');
-  mock.timers.tick(31000);assert.equal(s.model.id,B);await s.prompt('next request after recovery');assert.deepEqual(x.wires.map(b=>b.model),[A,B,A]);assert.equal(s.model.id,A);assert.equal(s.thinkingLevel,'low');assert.equal(x.metadata,8);assert.deepEqual(x.errors,[]);
+  mock.timers.tick(31000);assert.equal(s.model.id,B);await s.prompt('next request after recovery');assert.deepEqual(x.wires.map(b=>b.model),[A,B,A]);assert.equal(s.model.id,A);assert.equal(s.thinkingLevel,'low');assert.equal(x.metadata,4);assert.deepEqual(x.errors,[]);
  },{response:(n,body)=>{
   if(n!==1)return sse(body.model,{content:'ok'});
   const request_id='968bc57595ae7a6d59e2751cad03d322';const r=Response.json({message:'API rate limit exceeded',request_id},{status:429,headers:{'retry-after':'24','ratelimit-limit':'2','ratelimit-remaining':'0','ratelimit-reset':'24','x-ratelimit-limit-minute':'2','x-ratelimit-remaining-minute':'0','inference-id':request_id}});

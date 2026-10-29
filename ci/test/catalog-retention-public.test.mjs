@@ -18,7 +18,7 @@ test('cleanup tolerates stale CDN bytes only after receiving the exact current s
  const f = await fixture(), t = clock(), receipts = []; let calls = 0;
  const verify = publicVerifier({ expectedRules: f.expectedRules, ...t, policy, onObservation: r => receipts.push(r),
   fetcher: async (url, init) => {
-   assert.equal(new URL(url).origin + new URL(url).pathname, 'https://aminmzadev.github.io/pi-free-catalog/catalog/v1/latest.json');
+   assert.equal(new URL(url).origin + new URL(url).pathname, 'https://aminmzadev.github.io/pi-free-catalog/catalog/v2/latest.json');
    assert.equal(init.method, 'GET'); assert.equal(init.headers.authorization, undefined); assert.equal(init.redirect, 'error');
    return new Response(++calls < 3 ? f.stale : f.bytes, { headers: { 'x-cache': calls < 3 ? 'HIT' : 'MISS' } });
   } });

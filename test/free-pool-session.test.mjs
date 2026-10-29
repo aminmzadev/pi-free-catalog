@@ -7,10 +7,10 @@ import { join } from 'node:path';
 import { createAgentSession,DefaultResourceLoader,SessionManager,SettingsManager,initTheme } from '@earendil-works/pi-coding-agent';
 import extension from '../index.js';
 import { freePoolDefaults,validateFreePool,rotationDefaults,parsePoolKey } from '../src/free-pool.js';
-import { K,Z,A,B } from './free-pool-helper.mjs';
+import { K,K2,A,B } from './free-pool-helper.mjs';
 import { fetcher,fixtures } from './helpers.mjs';
 const sse=(model,delta={content:'done'},finish='stop',headers={})=>new Response(`data: ${JSON.stringify({id:'offline',model,choices:[{index:0,delta,finish_reason:finish}]})}\n\ndata: [DONE]\n\n`,{headers:{'content-type':'text/event-stream',...headers}});
-async function environment(run,{models=[K,Z],weights={},cycles=0,responseStartTimeoutMs=0,response=(_n,b)=>sse(b.model),thinking={},mutateFixture,initiallyLegacy=false,legacyGeneral=false,select=async()=>undefined,confirm=async()=>false,custom=async()=>false}={}){
+async function environment(run,{models=[K,K2],weights={},cycles=0,responseStartTimeoutMs=0,response=(_n,b)=>sse(b.model),thinking={},mutateFixture,initiallyLegacy=false,legacyGeneral=false,select=async()=>undefined,confirm=async()=>false,custom=async()=>false}={}){
  const dir=await mkdtemp(join(tmpdir(),'general-session-')),oldDir=process.env.PI_CODING_AGENT_DIR,oldFetch=globalThis.fetch,resize=process.stdout.listenerCount('resize');
  const statuses=new Map([['foreign','keep me']]),wires=[],errors=[],notices=[],events=[];let metadata=0,session;
  const config=validateFreePool({...freePoolDefaults(),enabled:true,models,weights,cycles,scheduling:'round-robin',responseStartTimeoutMs,thinking});
@@ -42,25 +42,25 @@ async function environment(run,{models=[K,Z],weights={},cycles=0,responseStartTi
  }
 }
 
-test('actual Pi Kilo/Zen only round robin rotates providers, preserves exact routes/anonymous identity, and performs no prompt metadata fetch',()=>environment(async x=>{
+test('actual Pi Kilo siblings only round robin rotates providers, preserves exact routes/anonymous identity, and performs no prompt metadata fetch',()=>environment(async x=>{
  const count=x.metadata;
  for(let i=0;i<4;i++)await x.session.prompt('Offline fixture only');
- assert.deepEqual(x.wires.map(w=>w.body.model),['reflection/beam-free','beam-free','reflection/beam-free','beam-free']);
- assert.deepEqual(x.wires.map(w=>new URL(w.url).host),['api.kilo.ai','opencode.ai','api.kilo.ai','opencode.ai']);
- assert.equal(x.wires[0].headers.get('x-kilo-free'),'true');assert.equal(x.wires[0].headers.has('authorization'),false);assert.equal(x.wires[1].headers.get('authorization'),'Bearer public');assert.equal(x.wires[1].headers.get('x-opencode-client'),'cli');
+ assert.deepEqual(x.wires.map(w=>w.body.model),['reflection/beam-free','thinkingmachines/inkling-small:free','reflection/beam-free','thinkingmachines/inkling-small:free']);
+ assert.deepEqual(x.wires.map(w=>new URL(w.url).host),['api.kilo.ai','api.kilo.ai','api.kilo.ai','api.kilo.ai']);
+ assert.equal(x.wires[0].headers.get('x-kilo-free'),'true');assert.equal(x.wires[0].headers.has('authorization'),false);assert.equal(x.wires[1].headers.has('authorization'),false);assert.equal(x.wires[1].headers.get('x-kilo-free'),'true');
  assert.equal(x.metadata,count);assert.deepEqual(x.errors,[]);assert.equal(x.statuses.get('foreign'),'keep me');assert.match(x.statuses.get('free-catalog'),/^Free chat:/);
  assert.equal(x.session.messages.filter(m=>m.role==='assistant').length,4);
 }));
 test('actual Pi mixed 3/4/1 sequence keeps per-model native thinking, finite cycles pause and restart does not refill allowance',()=>environment(async x=>{
  for(let i=0;i<8;i++)await x.session.prompt('Offline fixture only');
- assert.deepEqual(x.wires.map(w=>w.body.model),['reflection/beam-free','reflection/beam-free','reflection/beam-free','beam-free','beam-free','beam-free','beam-free','gpt-oss-120b']);
- assert.equal(x.wires[0].body.reasoning.effort,'high');assert.equal(x.wires[3].body.reasoning_effort,'low');assert.equal(x.wires[7].body.reasoning_effort,'high');assert.equal(x.wires[7].headers.has('authorization'),false);
+ assert.deepEqual(x.wires.map(w=>w.body.model),['reflection/beam-free','reflection/beam-free','reflection/beam-free','thinkingmachines/inkling-small:free','thinkingmachines/inkling-small:free','thinkingmachines/inkling-small:free','thinkingmachines/inkling-small:free','gpt-oss-120b']);
+ assert.equal(x.wires[0].body.reasoning.effort,'high');assert.equal(x.wires[3].body.reasoning.effort,'low');assert.equal(x.wires[7].body.reasoning_effort,'high');assert.equal(x.wires[7].headers.has('authorization'),false);
  await x.session.prompt('Must pause');assert.equal(x.wires.length,8);assert.match(x.session.messages.at(-1).errorMessage,/paused/);
  await x.restart();await x.session.prompt('Still paused');assert.equal(x.wires.length,8);assert.match(x.session.messages.at(-1).errorMessage,/paused/);assert.deepEqual(x.errors,[]);
-},{models:[K,Z,A],weights:{[K]:3,[Z]:4,[A]:1},cycles:1,thinking:{[K]:'high',[Z]:'low',[A]:'high'}}));
+},{models:[K,K2,A],weights:{[K]:3,[K2]:4,[A]:1},cycles:1,thinking:{[K]:'high',[K2]:'low',[A]:'high'}}));
 test('actual Pi completed tool runs exactly once, with its result handed across provider boundaries',()=>environment(async x=>{
  await x.session.prompt('Execute one harmless fixture tool, then summarize.');
- assert.deepEqual(x.wires.map(w=>w.body.model),['reflection/beam-free','beam-free']);
+ assert.deepEqual(x.wires.map(w=>w.body.model),['reflection/beam-free','thinkingmachines/inkling-small:free']);
  assert.equal(x.events.filter(e=>e.type==='tool_execution_start').length,1);
  assert.equal(await readFile(join(x.dir,'one.txt'),'utf8'),'once\n');
  assert.equal(x.wires[1].body.messages.filter(m=>m.role==='tool').length,1);assert.deepEqual(x.errors,[]);
@@ -69,7 +69,7 @@ for(const status of [401,403,503])test('actual Pi HTTP '+status+' never replays 
  await x.session.prompt('Offline error');assert.equal(x.wires.length,1);assert.equal(x.session.messages.at(-1).stopReason,'error');assert.deepEqual(x.errors,[]);
 },{response:()=>new Response(JSON.stringify({error:{message:'Fixture rejection'}}),{status,headers:{'content-type':'application/json','retry-after':'1'}})}));
 test('actual Pi silent owned deadline can advance across providers once, discards late source and spends both reservations',()=>environment(async x=>{
- await x.session.prompt('Offline timeout fixture');assert.deepEqual(x.wires.map(w=>w.body.model),['reflection/beam-free','beam-free']);assert.equal(x.session.messages.at(-1).stopReason,'stop');
+ await x.session.prompt('Offline timeout fixture');assert.deepEqual(x.wires.map(w=>w.body.model),['reflection/beam-free','thinkingmachines/inkling-small:free']);assert.equal(x.session.messages.at(-1).stopReason,'stop');
  assert.equal(x.session.messages.filter(m=>m.role==='assistant').length,1);const saved=JSON.parse(await readFile(join(x.dir,'free-catalog/free-pool.json')));assert.equal(saved.rotation.completed,1);assert.deepEqual(x.errors,[]);
 },{responseStartTimeoutMs:100,response:(n,b)=>n===1?new Promise(()=>{}):sse(b.model)}));
 test('actual Pi pending response abort cancels the chain, clears transient UI and preserves catalog/foreign statuses',async()=>{
@@ -98,24 +98,24 @@ function responsesFixture(model){
   ['response.completed',{type:'response.completed',response}],
  ]);
 }
-for(const api of ['openai-responses'])test('native SDK declared '+api+' crosses to Zen completions without rewriting model IDs or replaying history',()=>environment(async x=>{
+for(const api of ['openai-responses'])test('native SDK declared '+api+' falls back to completions without rewriting model IDs or replaying history',()=>environment(async x=>{
  await x.session.prompt('Offline protocol fixture');assert.equal(x.wires.length,1,JSON.stringify(x.session.messages.at(-1)));assert.equal(x.session.messages.at(-1).stopReason,'stop',JSON.stringify(x.session.messages.at(-1)));
- await x.session.prompt('Offline second turn');assert.equal(x.wires.length,2);assert.equal(x.wires[1].body.model,'beam-free',JSON.stringify({last:x.session.messages.at(-1),saved:JSON.parse(await readFile(join(x.dir,'free-catalog/free-pool.json'))),wires:x.wires.map(w=>w.url)}));assert.equal(x.session.messages.at(-1).stopReason,'stop');assert.deepEqual(x.errors,[]);
+ await x.session.prompt('Offline second turn');assert.equal(x.wires.length,2);assert.equal(x.wires[1].body.model,'thinkingmachines/inkling-small:free',JSON.stringify({last:x.session.messages.at(-1),saved:JSON.parse(await readFile(join(x.dir,'free-catalog/free-pool.json'))),wires:x.wires.map(w=>w.url)}));assert.equal(x.session.messages.at(-1).stopReason,'stop');assert.deepEqual(x.errors,[]);
  assert.ok(x.wires[0].url.endsWith(api==='anthropic-messages'?'/messages':'/responses'));
 },{mutateFixture:data=>{const row=data.kilo.data.find(r=>r.id==='reflection/beam-free');row.openclaw={api_adapter:api};if(api==='anthropic-messages')row.opencode.ai_sdk_provider='anthropic';},response:(_n,b,_init,url)=>url.endsWith('/responses')?responsesFixture(b.model):sse(b.model)}));
 
 test('unverified Anthropic beta-query transport is explicitly skipped, never bypasses anonymous guards or loses the catalog entry',()=>environment(async x=>{
- await x.session.prompt('Offline unsupported protocol');assert.equal(x.wires.length,1);assert.equal(x.wires[0].body.model,'beam-free');assert.ok(x.session.modelRuntime.getAllModels().some(m=>m.provider==='free-kilo'&&m.id==='reflection/beam-free'));
+ await x.session.prompt('Offline unsupported protocol');assert.equal(x.wires.length,1);assert.equal(x.wires[0].body.model,'thinkingmachines/inkling-small:free');assert.ok(x.session.modelRuntime.getAllModels().some(m=>m.provider==='free-kilo'&&m.id==='reflection/beam-free'));
  const records=x.session.sessionManager.getBranch().filter(e=>e.type==='custom');assert.ok(records.some(e=>e.data?.steps?.some(s=>s.state==='unavailable')));assert.deepEqual(x.errors,[]);
 },{mutateFixture:data=>{const row=data.kilo.data.find(r=>r.id==='reflection/beam-free');row.openclaw={api_adapter:'anthropic-messages'};row.opencode.ai_sdk_provider='anthropic';}}));
 
-test('actual Pi reviewed OVH-to-Kilo/Zen migration activates native routing, defaults to RR and leaves the old file/model intact',async()=>{
- const choices=[()=> 'Edit model order',o=>o.find(v=>v==='free-kilo / reflection/beam-free'),o=>o.find(v=>v==='free-zen / beam-free'),()=> 'Use this order',o=>o.find(v=>v.startsWith('Pool:')),()=> 'Apply settings'];
+test('actual Pi reviewed OVH-to-Kilo siblings migration activates native routing, defaults to RR and leaves the old file/model intact',async()=>{
+ const choices=[()=> 'Edit model order',o=>o.find(v=>v==='free-kilo / reflection/beam-free'),o=>o.find(v=>v==='free-kilo / thinkingmachines/inkling-small:free'),()=> 'Use this order',o=>o.find(v=>v.startsWith('Pool:')),()=> 'Apply settings'];
  await environment(async x=>{
   const file=join(x.dir,'free-catalog/ovh-pool.json'),old=await readFile(file,'utf8'),model=x.session.model,metadata=x.metadata;
   await x.session.prompt('/free-pool');assert.equal(x.session.model.provider,model.provider);assert.equal(x.session.model.id,model.id);assert.equal(await readFile(file,'utf8'),old);assert.equal(x.metadata,metadata);
-  const saved=JSON.parse(await readFile(join(x.dir,'free-catalog/free-pool.json')));assert.equal(saved.config.scheduling,'auto');assert.deepEqual(saved.config.models,[K,Z]);assert.equal(saved.config.enabled,true);
-  await x.session.prompt('first fixture');await x.session.prompt('second fixture');assert.deepEqual(x.wires.map(w=>w.body.model),['reflection/beam-free','beam-free']);assert.deepEqual(x.errors,[]);
+  const saved=JSON.parse(await readFile(join(x.dir,'free-catalog/free-pool.json')));assert.equal(saved.config.scheduling,'auto');assert.deepEqual(saved.config.models,[K,K2]);assert.equal(saved.config.enabled,true);
+  await x.session.prompt('first fixture');await x.session.prompt('second fixture');assert.deepEqual(x.wires.map(w=>w.body.model),['reflection/beam-free','thinkingmachines/inkling-small:free']);assert.deepEqual(x.errors,[]);
  },{initiallyLegacy:true,select:async(_title,options)=>{const f=choices.shift();assert.ok(f);return f(options);},custom:async()=>true});
 });
 
@@ -143,11 +143,11 @@ test('actual Pi user-reported XingChen shared-upstream 429 advances to another K
  const metadata=x.metadata;await x.session.prompt('Local fixture only');assert.deepEqual(x.wires.map(w=>w.body.model),['xingchen-agi/xing4.0-29b-a4b:free','reflection/beam-free']);assert.equal(x.session.messages.at(-1).stopReason,'stop');assert.equal(x.session.messages.filter(m=>m.role==='assistant').length,1);assert.equal(x.metadata,metadata);assert.deepEqual(x.errors,[]);
  const saved=JSON.parse(await readFile(join(x.dir,'free-catalog/free-pool.json')));assert.deepEqual(saved.barriers,{});assert.ok(saved.modelBarriers[X].until);assert.equal(saved.modelBarriers[K],undefined);assert.equal(saved.cooldownEvidence[0].scope,'model');assert.equal(saved.rotation.paused,false);
 },{models:[X,K],response:(n,b)=>n===1?Response.json({message:'Provider returned error',code:429,metadata:{raw:'xingchen-agi/xing4.0-29b-a4b:free is temporarily rate-limited upstream.',provider_name:'Phala',limit_source:'upstream_provider_shared_pool'}},{status:429}):sse(b.model)}));
-test('actual Pi respects an explicit broad server scope and skips the cooled Kilo sibling for Zen',()=>environment(async x=>{
- await x.session.prompt('Local fixture only');assert.deepEqual(x.wires.map(w=>w.body.model),['xingchen-agi/xing4.0-29b-a4b:free','beam-free']);assert.equal(x.session.messages.at(-1).stopReason,'stop');assert.deepEqual(x.errors,[]);
-},{models:[X,K,Z],response:(n,b)=>n===1?Response.json({message:'server declares service scope'},{status:429,headers:{'x-ratelimit-scope':'service','retry-after':'30'}}):sse(b.model)}));
+test('actual Pi respects an explicit broad server scope and skips all cooled Kilo siblings for OVH',()=>environment(async x=>{
+ await x.session.prompt('Local fixture only');assert.deepEqual(x.wires.map(w=>w.body.model),['xingchen-agi/xing4.0-29b-a4b:free','gpt-oss-120b']);assert.equal(x.session.messages.at(-1).stopReason,'stop');assert.deepEqual(x.errors,[]);
+},{models:[X,K,A],response:(n,b)=>n===1?Response.json({message:'server declares service scope'},{status:429,headers:{'x-ratelimit-scope':'service','retry-after':'30'}}):sse(b.model)}));
 test('actual Pi completed tool effect occurs once when a tool continuation receives 429 then succeeds elsewhere',()=>environment(async x=>{
- await x.session.prompt('Local tool fixture');assert.deepEqual(x.wires.map(w=>w.body.model),['reflection/beam-free','reflection/beam-free','beam-free']);assert.equal(x.events.filter(e=>e.type==='tool_execution_start').length,1);assert.equal(await readFile(join(x.dir,'once429.txt'),'utf8'),'once\n');assert.equal(x.wires[2].body.messages.filter(m=>m.role==='tool').length,1);assert.equal(x.session.messages.at(-1).stopReason,'stop');assert.deepEqual(x.errors,[]);
+ await x.session.prompt('Local tool fixture');assert.deepEqual(x.wires.map(w=>w.body.model),['reflection/beam-free','reflection/beam-free','thinkingmachines/inkling-small:free']);assert.equal(x.events.filter(e=>e.type==='tool_execution_start').length,1);assert.equal(await readFile(join(x.dir,'once429.txt'),'utf8'),'once\n');assert.equal(x.wires[2].body.messages.filter(m=>m.role==='tool').length,1);assert.equal(x.session.messages.at(-1).stopReason,'stop');assert.deepEqual(x.errors,[]);
 },{weights:{[K]:2},response:(n,b)=>n===1?sse(b.model,{role:'assistant',tool_calls:[{index:0,id:'once429',type:'function',function:{name:'bash',arguments:JSON.stringify({command:'printf "once\\n" >> once429.txt'})}}]},'tool_calls'):n===2?new Response('{}',{status:429}):sse(b.model)}));
 test('actual Pi authorized old finite settings migrate to continuous and survive process/session restart',()=>environment(async x=>{
  for(let n=0;n<4;n++)await x.session.prompt('Local continuous fixture');assert.equal(x.wires.length,4);const saved=JSON.parse(await readFile(join(x.dir,'free-catalog/free-pool.json')));assert.equal(saved.config.cycles,0);assert.equal(saved.policyVersion,3);assert.equal(saved.rotation.paused,false);await x.restart();await x.session.prompt('After restart');assert.equal(x.wires.length,5);assert.deepEqual(x.errors,[]);
@@ -155,6 +155,6 @@ test('actual Pi authorized old finite settings migrate to continuous and survive
 test('actual Pi OVH 429 may advance to Kilo while preserving OVH reservations and broad OVH cooldown',()=>environment(async x=>{
  await x.session.prompt('Local OVH fixture');assert.deepEqual(x.wires.map(w=>w.body.model),['gpt-oss-120b','reflection/beam-free']);assert.equal(x.session.messages.at(-1).stopReason,'stop');const saved=JSON.parse(await readFile(join(x.dir,'free-catalog/free-pool.json')));assert.equal(saved.ovhReservations['gpt-oss-120b'].length,1);assert.ok(saved.ovhCooldowns.providerUntil>0);assert.deepEqual(x.errors,[]);
 },{models:[A,K],response:(n,b)=>n===1?new Response('{}',{status:429,headers:{'retry-after':'60'}}):sse(b.model)}));
-test('actual native Responses 429 advances safely to Zen completions within one response',()=>environment(async x=>{
+test('actual native Responses 429 advances safely to completions within one response',()=>environment(async x=>{
  await x.session.prompt('Local Responses rejection');assert.equal(x.wires.length,2);assert.ok(x.wires[0].url.endsWith('/responses'));assert.ok(x.wires[1].url.endsWith('/chat/completions'));assert.equal(x.session.messages.at(-1).stopReason,'stop');assert.equal(x.session.messages.filter(m=>m.role==='assistant').length,1);assert.deepEqual(x.errors,[]);
 },{mutateFixture:data=>{data.kilo.data.find(r=>r.id==='reflection/beam-free').openclaw={api_adapter:'openai-responses'};},response:(n,b)=>n===1?new Response('{}',{status:429}):sse(b.model)}));

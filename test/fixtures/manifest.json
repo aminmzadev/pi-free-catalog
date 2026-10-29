@@ -1,31 +1,11 @@
 {
   "snapshot_date": "2026-10-17",
-  "note": "Normalized factual regression fixtures. Registry files contain the full opencode provider slice, not unrelated providers. JSON reserialized; gzip deterministic. Production always fetches live sources.",
+  "note": "Deterministic normalized offline fixtures for Kilo and OVH. Production always fetches live sources; historical migration fixtures live repository-only under ci/test/fixtures.",
   "files": {
-    "opencode.json.gz": {
-      "url": "https://opencode.ai/zen/v1/models",
-      "gzip_sha256": "db8646bfb78cbe5913ee346699c9f4b231d0b4cdbb7d8318ac009ac9816dc126",
-      "normalized_json_sha256": "725893d5bc62ee017c8a20e79705d40469754b7ee125ab40aef164100c94bc4f"
-    },
-    "opencode-capabilities.json.gz": {
-      "url": "https://models.opencode.ai/api.json",
-      "gzip_sha256": "7514319dc3fe3ba453da3a42cca094715d58a36a0ac0248b22ce2612e26b238e",
-      "normalized_json_sha256": "ef1d28ff9bd1daf48fc2d3c1867174504114dc184427e2e9ecea300d0c6dbbbc"
-    },
     "kilo.json.gz": {
       "url": "https://api.kilo.ai/api/gateway/models",
       "gzip_sha256": "f646f46c21033e1dbec1f914774ecedc470405db862517f10d38e45458f7990d",
       "normalized_json_sha256": "157f19ce402342095bf7766e88d7275c321247412945c6b87accd7c38de576a0"
-    },
-    "models-dev.json.gz": {
-      "url": "https://models.dev/api.json",
-      "gzip_sha256": "7514319dc3fe3ba453da3a42cca094715d58a36a0ac0248b22ce2612e26b238e",
-      "normalized_json_sha256": "ef1d28ff9bd1daf48fc2d3c1867174504114dc184427e2e9ecea300d0c6dbbbc"
-    },
-    "pi-opencode-catalog.json.gz": {
-      "url": "https://pi.dev/api/models/providers/opencode?types=chat,image,classifier",
-      "gzip_sha256": "e179c8ecff739343cd559bef26c5c9ecb26f36512505f79aebeb6149f71210b6",
-      "normalized_json_sha256": "4bf5a06220a9917b3e2987b5311e8c5d5be3e2f480a3f1f415fc43f7fac9c117"
     },
     "ovh-models.json.gz": {
       "url": "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/models",

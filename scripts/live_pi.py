@@ -38,7 +38,6 @@ def run(job):
  verifier="import pathlib,hashlib,json\np=pathlib.Path(__file__).parent/'result.txt'\nb=p.read_bytes()\nassert b.decode('utf-8').splitlines()=="+repr(expected)+", 'Wrong file contents'\nprint(json.dumps({'verified':True,'sha256':hashlib.sha256(b).hexdigest()}))\n"
  (case/'fixture.txt').write_text(fixture);(case/'verify.py').write_text(verifier);(case/'verify.py').chmod(0o444);prompt=NORMAL if kind=='normal' else TOOLS;(case/'prompt.txt').write_text(prompt)
  e=envfor(home,run)
- if job.get('public_env'):e['OPENCODE_API_KEY']='public'
  cmd=[str(NODE),str(CLI),'--no-extensions','--no-skills','--no-context-files','--no-mcp','--no-prompt-templates','--no-session','--mode','json','-p']
  if job.get('use_installed'):
   cmd.remove('--no-extensions')
@@ -47,7 +46,7 @@ def run(job):
  cmd+=['--provider',job['provider'],'--model',job['model']]
  if job.get('thinking'):cmd+=['--thinking',job['thinking']]
  cmd.append(prompt)
- (run/'command.json').write_text(json.dumps({'command':cmd,'cwd':str(case),'environment_keys':sorted(e),'public_literal_env':job.get('public_env',False)},indent=2));deadline=job.get('deadline',90 if kind=='normal' else 180);started=datetime.datetime.now(datetime.timezone.utc).isoformat();start=time.monotonic();timeout=False;limited=False;op=run/'stdout.jsonl';ep=run/'stderr.txt'
+ (run/'command.json').write_text(json.dumps({'command':cmd,'cwd':str(case),'environment_keys':sorted(e)},indent=2));deadline=job.get('deadline',90 if kind=='normal' else 180);started=datetime.datetime.now(datetime.timezone.utc).isoformat();start=time.monotonic();timeout=False;limited=False;op=run/'stdout.jsonl';ep=run/'stderr.txt'
  with op.open('wb') as out,ep.open('wb') as err:
   pr=subprocess.Popen(cmd,cwd=case,env=e,stdout=out,stderr=err,start_new_session=True)
   while True:
@@ -114,7 +113,7 @@ def run(job):
  elif answer.strip():status='OTHER_TEXT'
  elif code!=0 and not messages:status='LOAD_OR_SELECTION_ERROR'
  else:status='NO_COMPLETE_ANSWER'
- row={'id':ident,'extension':x['name'],'kind':x['kind'],'version':x.get('version'),'commit':x.get('commit'),'provider':job['provider'],'model':job['model'],'canonical_provider':job['service'],'mode':kind,'attempt':attempt,'phase':job.get('phase','plugin-comparison'),'thinking_requested':job.get('thinking','Pi default'),'public_literal_env':job.get('public_env',False),'blank_authorization_override':job.get('blank_authorization',False),'installed_package_discovery':job.get('use_installed',False),'started_utc':started,'seconds':round(time.monotonic()-start,2),'exit_code':code,'timeout':timeout,'budget_limit':limited,'status':status,'used_custom_model_fallback':fallback,'answer':answer,'stop_reason':last.get('stopReason'),'errors':errors,'stderr':stderr,'declared_tools':declared,'successful_tools':sorted(set(t.get('toolName','') for t in ends if not t.get('isError',False))),'tool_checks':checks,'file_correct':file_ok,'final_tool_answer_correct':final_ok,'fixtures_unchanged':intact,'file_scope_observations':scope,'tool_events':ends,'retry_events':retries,'invalid_jsonl_lines':bad,'observed_models':sorted(set(m.get('model','') for m in messages)),'fixture_token':token,'result_sha256':sha,'relative_run_path':str(run.relative_to(P)),'wire_http_statuses':statuses,'usage':{k:sum(m.get('usage',{}).get(k,0) for m in messages) for k in ['input','output','totalTokens']}}
+ row={'id':ident,'extension':x['name'],'kind':x['kind'],'version':x.get('version'),'commit':x.get('commit'),'provider':job['provider'],'model':job['model'],'canonical_provider':job['service'],'mode':kind,'attempt':attempt,'phase':job.get('phase','plugin-comparison'),'thinking_requested':job.get('thinking','Pi default'),'installed_package_discovery':job.get('use_installed',False),'started_utc':started,'seconds':round(time.monotonic()-start,2),'exit_code':code,'timeout':timeout,'budget_limit':limited,'status':status,'used_custom_model_fallback':fallback,'answer':answer,'stop_reason':last.get('stopReason'),'errors':errors,'stderr':stderr,'declared_tools':declared,'successful_tools':sorted(set(t.get('toolName','') for t in ends if not t.get('isError',False))),'tool_checks':checks,'file_correct':file_ok,'final_tool_answer_correct':final_ok,'fixtures_unchanged':intact,'file_scope_observations':scope,'tool_events':ends,'retry_events':retries,'invalid_jsonl_lines':bad,'observed_models':sorted(set(m.get('model','') for m in messages)),'fixture_token':token,'result_sha256':sha,'relative_run_path':str(run.relative_to(P)),'wire_http_statuses':statuses,'usage':{k:sum(m.get('usage',{}).get(k,0) for m in messages) for k in ['input','output','totalTokens']}}
  (run/'result.json').write_text(json.dumps(row,ensure_ascii=False,indent=2));print(json.dumps({k:row[k] for k in ['id','extension','model','mode','status','seconds','successful_tools','errors']},ensure_ascii=False),flush=True);return row
 
 def batch(jobs,workers=2,outfile='inference-results.json'):
@@ -128,22 +127,22 @@ if __name__=='__main__':
  snapshot=json.loads((P/'live-catalog.json').read_text());x={'kind':'local','name':'pi-free-catalog','path':str(ROOT),'version':json.loads((ROOT/'package.json').read_text())['version']}
  jobs=[]
  for entry in snapshot['entries'].values():
-  if entry['classification']!='free' or not entry['listed'] or entry['type']!='chat' or entry['lifecycle']=='retired':continue
+  if entry['service'] not in ['kilo','ovh'] or entry['classification']!='free' or not entry['listed'] or entry['type']!='chat' or entry['lifecycle']=='retired':continue
   service=entry['service'];ident='normal-'+service+'-'+hashlib.sha256(entry['id'].encode()).hexdigest()[:10]
-  jobs.append({'item':x,'mode':'normal','id':ident,'phase':'all-free-models','service':'kilo' if service=='kilo' else 'opencode','provider':'free-'+service,'model':entry['id'],'home_override':str(P/'homes'/ident),'deadline':90})
- for service,model in [('kilo','poolside/laguna-s-2.1:free'),('kilo','reflection/beam-free'),('zen','mimo-v2.6-flash-free'),('zen','beam-free')]:
+  jobs.append({'item':x,'mode':'normal','id':ident,'phase':'all-free-models','service':service,'provider':'free-'+service,'model':entry['id'],'home_override':str(P/'homes'/ident),'deadline':90})
+ for service,model in [('kilo','poolside/laguna-s-2.1:free'),('kilo','reflection/beam-free'),('ovh','gpt-oss-120b'),('ovh','gpt-oss-20b')]:
   ident='tools-'+service+'-'+hashlib.sha256(model.encode()).hexdigest()[:10]
-  jobs.append({'item':x,'mode':'tools','id':ident,'phase':'four-default-tools','service':'kilo' if service=='kilo' else 'opencode','provider':'free-'+service,'model':model,'home_override':str(P/'homes'/ident),'deadline':180})
- for service,model,mode in [('kilo','reflection/beam-free','low'),('kilo','reflection/beam-free','high'),('kilo','poolside/laguna-s-2.1:free','instant'),('zen','beam-free','low'),('zen','beam-free','max'),('kilo','nvidia/nemotron-3.5-super-vl:free','instant')]:
+  jobs.append({'item':x,'mode':'tools','id':ident,'phase':'four-default-tools','service':service,'provider':'free-'+service,'model':model,'home_override':str(P/'homes'/ident),'deadline':180})
+ for service,model,mode in [('kilo','reflection/beam-free','low'),('kilo','reflection/beam-free','high'),('kilo','poolside/laguna-s-2.1:free','instant'),('kilo','thinkingmachines/inkling-small:free','low'),('kilo','thinkingmachines/inkling-small:free','max'),('kilo','nvidia/nemotron-3.5-super-vl:free','instant')]:
   ident='thinking-'+service+'-'+mode+('-supervl' if 'super-vl' in model else '');home=P/'homes'/ident;folder=home/'.pi/agent/free-catalog';folder.mkdir(parents=True,exist_ok=True)
   (folder/'thinking.json').write_text(json.dumps({json.dumps([service,model],separators=(',',':')):mode}))
-  jobs.append({'item':x,'mode':'normal','id':ident,'phase':'native-thinking','service':'kilo' if service=='kilo' else 'opencode','provider':'free-'+service,'model':model,'home_override':str(home),'deadline':90})
- for service in ['kilo','zen']:
-  model='reflection/beam-free' if service=='kilo' else 'beam-free';ident='pi-thinking-'+service+'-low'
-  jobs.append({'item':x,'mode':'normal','id':ident,'phase':'pi-thinking-flag','thinking':'low','service':'kilo' if service=='kilo' else 'opencode','provider':'free-'+service,'model':model,'home_override':str(P/'homes'/ident),'deadline':90})
- if '--pilot' in sys.argv:jobs=[next(j for j in jobs if j['provider']==p and 'laguna-s' in j['model'] or j['provider']==p and 'mimo-v2.6-flash' in j['model']) for p in ['free-kilo','free-zen']]
+  jobs.append({'item':x,'mode':'normal','id':ident,'phase':'native-thinking','service':service,'provider':'free-'+service,'model':model,'home_override':str(home),'deadline':90})
+ for service in ['kilo','ovh']:
+  model='reflection/beam-free' if service=='kilo' else 'gpt-oss-120b';ident='pi-thinking-'+service+'-low'
+  jobs.append({'item':x,'mode':'normal','id':ident,'phase':'pi-thinking-flag','thinking':'low','service':service,'provider':'free-'+service,'model':model,'home_override':str(P/'homes'/ident),'deadline':90})
+ if '--pilot' in sys.argv:jobs=[next(j for j in jobs if j['provider']==p and 'laguna-s' in j['model'] or j['provider']==p and 'gpt-oss-120b' in j['model']) for p in ['free-kilo','free-ovh']]
  if '--installed' in sys.argv:
-  jobs=[j for j in jobs if j['mode']=='tools' and ('laguna-s' in j['model'] or 'mimo-v2.6-flash' in j['model'] or j['model']=='reflection/beam-free')]
+  jobs=[j for j in jobs if j['mode']=='tools' and ('laguna-s' in j['model'] or 'gpt-oss-120b' in j['model'] or j['model']=='reflection/beam-free')]
   for j in jobs:j.update({'id':'packaged-'+j['id'],'use_installed':True,'home_override':str(P/'installed-home'),'phase':'packaged-installation'})
  prior=json.loads((P/'inference-results.json').read_text()) if (P/'inference-results.json').exists() else []
  done={r['id'] for r in prior};jobs=[j for j in jobs if j['id'] not in done]

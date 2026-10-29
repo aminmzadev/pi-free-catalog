@@ -13,27 +13,21 @@ import {Socket} from 'node:net';
 Socket.prototype.connect=function(){throw Error('Network sockets forbidden in general pool CLI test');};
 const metadata={
 'https://api.kilo.ai/api/gateway/models':'kilo',
-'https://opencode.ai/zen/v1/models':'opencode',
-'https://models.opencode.ai/api.json':'opencode-capabilities',
-'https://models.dev/api.json':'models-dev',
-'https://pi.dev/api/models/providers/opencode?types=chat,image,classifier':'pi-opencode-catalog',
 'https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/models':'ovh-models',
 'https://catalog.endpoints.ai.ovh.net/rest/v1/models_v2':'ovh-catalog'};
 const endpoints={
 'https://api.kilo.ai/api/gateway/chat/completions':['kilo','reflection/beam-free'],
-'https://opencode.ai/inference/v1/chat/completions':['zen','beam-free'],
 'https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions':['ovh','gpt-oss-120b']};
 const fetcher=async(input,init={})=>{
  const url=String(input instanceof Request?input.url:input),method=(init.method??'GET').toUpperCase();
  if(method==='GET'){
   appendFileSync(process.env.GENERAL_CLI_LOG,JSON.stringify({method,url,network:false})+'\\n');
-  const p=new URL(url);if(p.origin+p.pathname==='https://aminmzadev.github.io/pi-free-catalog/catalog/v1/latest.json')return new Response(null,{status:503});
+  const p=new URL(url);if(p.origin+p.pathname==='https://aminmzadev.github.io/pi-free-catalog/catalog/v2/latest.json')return new Response(null,{status:503});
   assert.ok(metadata[url],url);return new Response(gunzipSync(readFileSync(process.env.GENERAL_CLI_FIXTURES+'/'+metadata[url]+'.json.gz')),{headers:{'content-type':'application/json'}});
  }
- assert.equal(method,'POST');assert.ok(endpoints[url],url);const [service,id]=endpoints[url],body=JSON.parse(init.body),headers=new Headers(init.headers);
- if(process.env.GENERAL_CLI_CONTINUITY==='1')assert.ok(['xingchen-agi/xing4.0-29b-a4b:free','reflection/beam-free'].includes(body.model));else assert.equal(body.model,id);assert.equal(headers.has('cookie'),false);
+ assert.equal(method,'POST');assert.ok(endpoints[url],url);const [service]=endpoints[url],body=JSON.parse(init.body),headers=new Headers(init.headers);const id=body.model;
+ if(process.env.GENERAL_CLI_CONTINUITY==='1')assert.ok(['xingchen-agi/xing4.0-29b-a4b:free','reflection/beam-free'].includes(body.model));else assert.ok((service==='kilo'?['reflection/beam-free','thinkingmachines/inkling-small:free']:['gpt-oss-120b']).includes(body.model));assert.equal(headers.has('cookie'),false);
  if(service==='kilo'){assert.equal(headers.has('authorization'),false);assert.equal(headers.get('x-kilo-free'),'true');}
- else if(service==='zen'){assert.equal(headers.get('authorization'),'Bearer public');assert.equal(headers.get('x-opencode-client'),'cli');}
  else assert.equal(headers.has('authorization'),false);
  appendFileSync(process.env.GENERAL_CLI_LOG,JSON.stringify({method,service,model:body.model,network:false})+'\\n');
  if(process.env.GENERAL_CLI_CONTINUITY==='1'&&body.model==='xingchen-agi/xing4.0-29b-a4b:free')return Response.json({message:'Provider returned error',metadata:{provider_name:'Phala',limit_source:'upstream_provider_shared_pool'}},{status:429});
@@ -47,10 +41,10 @@ export async function verifyGeneralLoader(projectRoot,{continuity=false}={}){
  try{
   await writeFile(join(temp,'preload.mjs'),preload);
   for(const localPeers of [false,true])for(const mixed of (continuity?[false]:[false,true])){
-   const dir=join(temp,`${localPeers?'local-peers':'host-only'}-${mixed?'mixed':'kilo-zen'}`),plugin=join(dir,'extension'),agent=join(dir,'agent');await mkdir(join(agent,'free-catalog'),{recursive:true});await mkdir(plugin,{recursive:true});
+   const dir=join(temp,`${localPeers?'local-peers':'host-only'}-${mixed?'mixed':'kilo-siblings'}`),plugin=join(dir,'extension'),agent=join(dir,'agent');await mkdir(join(agent,'free-catalog'),{recursive:true});await mkdir(plugin,{recursive:true});
    for(const name of ['index.js','package.json','src'])await cp(join(root,name),join(plugin,name),{recursive:true});
    if(localPeers)await symlink(host,join(plugin,'node_modules'),'dir');
-   const pairs=continuity?[['kilo','xingchen-agi/xing4.0-29b-a4b:free'],['kilo','reflection/beam-free']]:[['kilo','reflection/beam-free'],['zen','beam-free'],...(mixed?[['ovh','gpt-oss-120b']]:[])],models=pairs.map(p=>JSON.stringify(p));
+   const pairs=continuity?[['kilo','xingchen-agi/xing4.0-29b-a4b:free'],['kilo','reflection/beam-free']]:[['kilo','reflection/beam-free'],['kilo','thinkingmachines/inkling-small:free'],...(mixed?[['ovh','gpt-oss-120b']]:[])],models=pairs.map(p=>JSON.stringify(p));
    const config={schemaVersion:2,enabled:true,models,weights:Object.fromEntries(models.map(k=>[k,1])),thinking:Object.fromEntries(models.map(k=>[k,'default'])),scheduling:'round-robin',cycles:1,maxWaitMs:0,responseStartTimeoutMs:0};
    const configFile=join(agent,'free-catalog/free-pool.json');await writeFile(configFile,JSON.stringify({schemaVersion:2,...(continuity?{}:{policyVersion:3,modelBarriers:{}}),config,rotation:{cursor:0,used:0,completed:continuity?1:0,paused:continuity},barriers:{},ovhReservations:{},ovhCooldowns:{models:{},providerUntil:0},approvedProviders:[...new Set(pairs.map(p=>p[0]))].sort()}));
    const env={GENERAL_CLI_CONTINUITY:continuity?'1':'0',PATH:process.env.PATH,HOME:join(dir,'home'),PI_CODING_AGENT_DIR:agent,PI_SKIP_VERSION_CHECK:'1',NO_COLOR:'1',LANG:'C.UTF-8',GENERAL_CLI_LOG:join(dir,'fetch.jsonl'),GENERAL_CLI_FIXTURES:join(root,'test/fixtures')};

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.8
+
+- Remove the OpenCode provider, its discovery registries, anonymous headers and routes, native classifier dependency, UI choices and standalone source fixtures. Keep Kilo and OVHcloud inventories and their native thinking, transport, lifecycle and quota safeguards.
+- Move the two-provider Pages snapshot to the strict v2 contract. Preserve run-specific publication proof and separate latest freshness/cleanup gates. Future site artifacts no longer publish v1.
+- Add a pinned, integrity-checked one-way backend migration from the previous published v1 snapshot, preserving Kilo/OVH last-known-good evidence, source times and history instead of silently bootstrapping.
+- Retire removed-provider saved data without selecting a replacement model. Preserve other thinking preferences and pool settings. Pools with removed members pause for explicit review/restart; remaining cooldowns and OVH accounting are not reset.
+- Update the README artwork and reference for two providers. Add provider-removal, migration, corruption, persistence and golden reconciliation regressions; port generic safety and scheduling tests to Kilo/OVH models.
+
 ## 0.1.7
 
 ### Added

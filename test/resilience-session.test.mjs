@@ -31,33 +31,33 @@ async function environment(run){
  finally{release?.();for(const s of sessions)await close(s);globalThis.fetch=before;if(prior===undefined)delete process.env.PI_CODING_AGENT_DIR;else process.env.PI_CODING_AGENT_DIR=prior;await rm(dir,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
 }
 test('real Pi: delayed thinking events cannot leave native parameters behind current Pi selection',async()=>environment(async x=>{
- const s=await x.start();assert.equal(x.catalogCalls,8);const preferenceKeys=[];
- for(const [provider,id] of [['free-kilo','reflection/beam-free'],['free-zen','beam-free']]){
+ const s=await x.start();assert.equal(x.catalogCalls,4);const preferenceKeys=[];
+ for(const [provider,id] of [['free-kilo','reflection/beam-free'],['free-kilo','thinkingmachines/inkling-small:free']]){
   await s.setModel(s.modelRuntime.getModel(provider,id));await s.prompt('/free-thinking high');
   x.block();
-  for(const level of ['low','max','medium','xhigh','high']){
+  for(const level of (id==='reflection/beam-free'?['low','max','medium','xhigh','high']:['low','max','medium','high'])){
    s.setThinkingLevel(level);await s.prompt('17 * 19');const wire=x.wires.at(-1);
-   assert.equal(provider==='free-kilo'?wire.reasoning.effort:wire.reasoning_effort,level);
+   assert.equal(provider==='free-kilo'?wire.reasoning.effort:wire.reasoning?.effort,level);
   }
   x.unblock();await new Promise(r=>setImmediate(r));
-  preferenceKeys.push(JSON.stringify([provider==='free-kilo'?'kilo':'zen',id]));
+  preferenceKeys.push(JSON.stringify([provider==='free-kilo'?'kilo':'kilo',id]));
  }
  await x.close(s);const saved=JSON.parse(await readFile(join(x.dir,'free-catalog/thinking.json'),'utf8'));for(const key of preferenceKeys)assert.equal(saved[key],'auto');
- assert.equal(x.catalogCalls,8);assert.deepEqual(x.errors,[]);
+ assert.equal(x.catalogCalls,4);assert.deepEqual(x.errors,[]);
 }));
 test('real Pi: failed startup/manual refresh leaves chat working and footer quiet',async()=>environment(async x=>{
- let s=await x.start();assert.equal(x.catalogCalls,8);await x.close(s);x.offline();
- s=await x.start();assert.equal(x.catalogCalls,16);assert.ok(x.notes.some(x=>x.includes('Chat remains available')));
- for(const [provider,id] of [['free-kilo','reflection/beam-free'],['free-zen','beam-free']]){
+ let s=await x.start();assert.equal(x.catalogCalls,4);await x.close(s);x.offline();
+ s=await x.start();assert.equal(x.catalogCalls,8);assert.ok(x.notes.some(x=>x.includes('Chat remains available')));
+ for(const [provider,id] of [['free-kilo','reflection/beam-free'],['free-kilo','thinkingmachines/inkling-small:free']]){
   await s.setModel(s.modelRuntime.getModel(provider,id));s.setThinkingLevel('low');await s.prompt('17 * 19');assert.equal(s.messages.filter(m=>m.role==='assistant').at(-1).stopReason,'stop');
  }
- assert.equal(x.catalogCalls,16);
- await s.prompt('/free-refresh');await new Promise(r=>setImmediate(r));assert.equal(x.catalogCalls,24);
- await s.prompt('17 * 19');assert.equal(s.messages.filter(m=>m.role==='assistant').at(-1).stopReason,'stop');assert.equal(x.catalogCalls,24);
- assert.match(x.statuses.get('free-catalog'),/^Free chat: Kilo \d+ · Zen \d+ · OVH \d+$/);assert.ok(![...x.statuses.values()].some(v=>/STALE|no advertised controls/.test(v)));
+ assert.equal(x.catalogCalls,8);
+ await s.prompt('/free-refresh');await new Promise(r=>setImmediate(r));assert.equal(x.catalogCalls,12);
+ await s.prompt('17 * 19');assert.equal(s.messages.filter(m=>m.role==='assistant').at(-1).stopReason,'stop');assert.equal(x.catalogCalls,12);
+ assert.match(x.statuses.get('free-catalog'),/^Free chat: Kilo \d+ · OVH \d+$/);assert.ok(![...x.statuses.values()].some(v=>/STALE|no advertised controls/.test(v)));
  assert.deepEqual(x.errors,[]);
 }));
 test('real Pi: controls/default-only status stays absent without hiding manual default/unmapped notices',async()=>environment(async x=>{
  const s=await x.start();const m=s.modelRuntime.getAllModels().find(m=>m.provider==='free-kilo'&&Object.values(m.thinkingLevelMap||{}).every(v=>v===null)&&m.type!=='classifier');assert.ok(m);
- await s.setModel(m);assert.equal(x.statuses.get('free-thinking'),undefined);assert.equal(x.catalogCalls,8);assert.deepEqual(x.errors,[]);
+ await s.setModel(m);assert.equal(x.statuses.get('free-thinking'),undefined);assert.equal(x.catalogCalls,4);assert.deepEqual(x.errors,[]);
 }));

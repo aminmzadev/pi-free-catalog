@@ -1,6 +1,6 @@
 # pi-free-catalog technical reference
 
-Detailed behavior, evidence rules, compatibility boundaries and test harnesses for the locally prepared 0.1.7 source tree. This version has not been published. For installation and everyday use, start at the [project page](https://github.com/aminmzadev/pi-free-catalog).
+Detailed behavior, evidence rules, compatibility boundaries and test harnesses for pi-free-catalog. For installation and everyday use, start at the [project page](https://github.com/aminmzadev/pi-free-catalog).
 
 This reference describes evidence rules, request boundaries and local verification. The README covers everyday use.
 
@@ -12,14 +12,12 @@ The goal is to keep the full picture visible, not just the models that happened 
 - All currently listed, confirmed-free chat models are registered, including models with unknown limits, limited tool support, or previous inference errors.
 - Models with uncertain or conflicting prices remain in `/free-catalog` and `/free-export`, with calls blocked until they can be verified.
 - Previously free, missing, deprecated, and retired models remain in the report and history. They do not quietly disappear from the evidence.
-- Native classifiers, such as Zen's `jev-1.13-free`, are registered separately rather than presented as chat models.
 - An unfamiliar operation or transport stays in the report with a clear unsupported notice. Being listed is not a promise that every future protocol is implemented.
 
 ### How free pricing is checked
 
 For **Kilo**, the catalog's explicit `isFree: true` flag is the starting point. A positive charge conflicts with that flag and blocks the model. Zero prices alongside `isFree: false` are also treated as a conflict. Missing or dynamic prices are retained as evidence when the explicit free flag is present.
 
-For **Zen**, the live model list is joined by exact ID with official OpenCode metadata, models.dev, and Pi's model metadata. The check includes input, output, cache, and tiered charges. Missing prices are unknown, not assumed to be zero. For an already confirmed-free model, incomplete metadata can retain its last-known free evidence instead of disabling chat. New models without free evidence, fresh paid prices, and price conflicts are still blocked.
 
 For **OVHcloud**, official anonymous rate-limit metadata establishes the no-account lane; commercial input/output prices are not assumed to be zero. The runtime list is joined to the rich catalog by exact ID, exact name, or an explicitly declared alias. Ambiguous matches and new models without anonymous entitlement remain unknown, not free. The full commercial rate card and rich record are retained in exports; Pi's effective cost is zero only for the anonymous lane.
 
@@ -33,7 +31,7 @@ OVH documents an anonymous quota of **2 requests/minute/IP/model**, including ea
 - A 429 extends the next same-model gate using `Retry-After` seconds or HTTP date. A missing/invalid value uses a conservative local delay. For standalone/legacy OVH, the original upstream response is returned without replay; the extension does not automatically retry, rotate IPs, or activate paid access. Model changes require the explicitly enabled pool described below; an optional silent-start timeout is its narrowly scoped same-inference exception. SDK retries are disabled for OVH. Pi's independent agent retry preferences still belong to the user; disable them when you want the run to stop at the first upstream error.
 - Pacing is **per running extension**, not coordinated across processes or other clients sharing your public IP. The upstream quota is authoritative; local accounting cannot guarantee capacity.
 - All eligible text-generation models remain registered, including a model without advertised tools. Its picker name says `chat-only; tools not advertised`. This is a capability limitation, not a fabricated live-test result. Reasoning without advertised effort values keeps the provider default; no thinking selector is invented.
-- Embedding, safety/moderation, speech, and image-generation entries remain visible in reports/exports, but are not routed through the chat endpoint or presented as Zen classifiers. Image **inputs** for a text-generation model are a separate advertised capability.
+- Embedding, safety/moderation, speech, and image-generation entries remain visible in reports/exports, but are not routed through the chat endpoint. Image **inputs** for a text-generation model are a separate advertised capability.
 - The rich catalog's `available: false` website flag alone does not prove API retirement; an explicit EOL date still applies. Catalog/metadata failure retains previously justified anonymous models, while a fresh withdrawal of anonymous entitlement blocks them.
 
 ### Optional OVH priority pool (default OFF)
@@ -109,9 +107,9 @@ The October 22 fixture has 22 runtime records, ten chat models, and nine chat mo
 
 ## Refreshes and model history
 
-At extension startup and explicit `/free-refresh`, the extension first tries the public [catalog snapshot](https://aminmzadev.github.io/pi-free-catalog/catalog/v1/latest.json) on GitHub Pages. A healthy snapshot needs one metadata GET instead of seven upstream GETs. The shipped client validates the version, repository, exact production rules fingerprint, timestamps, integrity, inventories, and structural limits before adopting it. Downloaded content is JSON data, never executable code. The hash detects corruption and incompatibility; it is not an independent signature. HTTPS and the repository publishing pipeline remain the trust boundary.
+At extension startup and explicit `/free-refresh`, the extension first tries the public [catalog snapshot](https://aminmzadev.github.io/pi-free-catalog/catalog/v2/latest.json) on GitHub Pages. A healthy snapshot needs one metadata GET instead of three upstream GETs. The shipped client validates the version, repository, exact production rules fingerprint, timestamps, integrity, inventories, and structural limits before adopting it. Downloaded content is JSON data, never executable code. The hash detects corruption and incompatibility; it is not an independent signature. HTTPS and the repository publishing pipeline remain the trust boundary.
 
-A usable local cache is registered immediately, without waiting for the network. One bounded startup refresh then runs; it is cancelled on shutdown, not repeated on a timer. Without a cache, startup waits for its bounded initial refresh. Pages requests use a new cache-busting key, disable caching, and reject redirects. If Pages is unavailable, invalid, incompatible, older than local source evidence, or contains source data older than 45 minutes, the client falls back to the existing seven direct-source checks. After startup, only `/free-refresh` starts another refresh. Concurrent refresh requests share one in-flight operation. Sending messages, changing thinking, waiting past five minutes, and Pi's internal model-registry refresh do not trigger catalog network requests. Reloading the extension starts a new startup check.
+A usable local cache is registered immediately, without waiting for the network. One bounded startup refresh then runs; it is cancelled on shutdown, not repeated on a timer. Without a cache, startup waits for its bounded initial refresh. Pages requests use a new cache-busting key, disable caching, and reject redirects. If Pages is unavailable, invalid, incompatible, older than local source evidence, or contains source data older than 45 minutes, the client falls back to the existing three direct-source checks. After startup, only `/free-refresh` starts another refresh. Concurrent refresh requests share one in-flight operation. Sending messages, changing thinking, waiting past five minutes, and Pi's internal model-registry refresh do not trigger catalog network requests. Reloading the extension starts a new startup check.
 
 A failed refresh does not erase or disable the last known free catalog. The 45-minute threshold is a reason to try direct recovery, not an expiry that disables cached inference. On a cold install with no local records, a fully validated older Pages snapshot can remain the last-known-good if all direct checks fail; it is labelled with its original source timestamps. Valid Pages data is reconciled with local history and earlier `firstSeen` dates, not blindly unioned with old free-model lists. New paid, withdrawn, or retired evidence still applies. Cached free models stay selectable and requests are sent to their normal anonymous endpoints. A catalog outage is not an inference outage: if the endpoint is reachable, chat and tools can still work. If the model is missing or unavailable upstream, its actual response is returned without a freshness-guard error. A first run without either a usable cache or a successful fetch cannot invent a model list.
 
@@ -179,7 +177,7 @@ You can also choose a native mode directly. For example, after selecting an appr
 /free-thinking default
 ```
 
-These are examples for different models, not options supported by every model. Kilo Beam advertises effort levels such as `low`, `medium`, `high`, `xhigh`, and `max`. Toggle models use modes such as `instant` and `thinking`. Zen and OVH effort settings are sent as `reasoning_effort`; Kilo settings use the provider's native parameters. The available choices come from live metadata, so check `/free-thinking` rather than relying on a fixed list.
+These are examples for different models, not options supported by every model. Kilo Beam advertises effort levels such as `low`, `medium`, `high`, `xhigh`, and `max`. Toggle models use modes such as `instant` and `thinking`. OVH effort settings are sent as `reasoning_effort`; Kilo settings use the provider's native parameters. The available choices come from live metadata, so check `/free-thinking` rather than relying on a fixed list.
 
 ### Pi and native choices stay in sync
 
@@ -201,7 +199,7 @@ Preferences are saved per provider and model in `thinking.json` beside the cache
 
 ## A quieter footer
 
-The normal Pi footer is the default. A persistent `Free chat: Kilo … · Zen … · OVH …` status counts listed, confirmed-free, non-retired chat models in the current catalog—not just pool members or models eligible for the current prompt. Classifiers, embeddings and other non-chat types are excluded. Replies, errors, aborts, model/provider changes and temporary pool cleanup do not clear this count. No persistent pool path or duplicate model/thinking label is added; only a short transient OVH waiting indicator accompanies it. Full inventories and evidence remain available in commands and exports.
+The normal Pi footer is the default. A persistent `Free chat: Kilo … · OVH …` status counts listed, confirmed-free, non-retired chat models in the current catalog—not just pool members or models eligible for the current prompt. Classifiers, embeddings and other non-chat types are excluded. Replies, errors, aborts, model/provider changes and temporary pool cleanup do not clear this count. No persistent pool path or duplicate model/thinking label is added; only a short transient OVH waiting indicator accompanies it. Full inventories and evidence remain available in commands and exports.
 
 Run `/free-footer` to open display settings, or `/free-footer counts on` / `counts off` directly. Choices take effect immediately; Escape closes the menu without further changes, not undoing choices already made. In non-interactive modes, the no-argument command reports the current settings. Counts are ON by default and independent of compact/default appearance, pool enablement, selected model, thinking and quota. Display commands perform no metadata refresh or inference.
 
@@ -209,7 +207,7 @@ Preferences are saved as `{"footer":"default","chatCounts":true}` in `free-catal
 
 Counts shorten with terminal width and update on interactive resize without fetching sources. Only their own status key is cleared when hidden or shut down, and resize listeners are removed. Pi still clips the combined status line; another extension's complete custom footer may choose not to render extension statuses. Count controls never claim, clear or replace that footer.
 
-Pi has one custom-footer slot and no public composition/ownership getter. Two extensions cannot safely combine arbitrary complete footers automatically. If you want this package to hide only the `(free-kilo)`, `(free-zen)`, or `(free-ovh)` prefix, select a free model and explicitly run `/free-footer compact`. This reuses Pi's exported renderer and preserves the other statistics and statuses. Provider IDs and model-picker entries never change.
+Pi has one custom-footer slot and no public composition/ownership getter. Two extensions cannot safely combine arbitrary complete footers automatically. If you want this package to hide only the `(free-kilo)` or `(free-ovh)` prefix, select a free model and explicitly run `/free-footer compact`. This reuses Pi's exported renderer and preserves the other statistics and statuses. Provider IDs and model-picker entries never change.
 
 The preference is saved in `ui.json`. An existing explicitly saved compact preference is respected at startup. If another extension subsequently replaces our footer, its disposal notification relinquishes our ownership. Model switches will not reclaim or erase that extension's footer. `/free-footer default` releases our footer only while we still own it; it cannot resurrect a custom footer that an explicit compact command previously replaced. Run compact again only when you intend to claim the slot.
 
@@ -221,7 +219,7 @@ Requests use Pi's own OpenAI Completions, Responses, Anthropic Messages, and nat
 
 Known explicit retirement deadlines are also checked locally before requests, without fetching catalogs again. `retirement_date`, `retired_at`, and Kilo's native `expiration_date` share one calendar-valid ISO parser. Date-only deadlines start at midnight UTC. Corrected or removed dates are reconciled on refresh; stale evidence cannot bypass a known deadline. OVH's explicit DD/MM/YYYY EOL field is normalized into the same lifecycle policy.
 
-Before each HTTP request, a scoped guard checks the model ID, approved endpoint, last-known free classification and lifecycle. It does not require a recent catalog fetch. It blocks redirects and paid fallback, and removes Authorization, x-api-key, and api-key headers before installing public/anonymous headers. Kilo requests carry no Authorization header. OVH uses a separate allowlisted header set: no caller credentials, Authorization, API keys, cookies, or payment headers. Zen uses the literal public placeholder `Bearer public`, compatible CLI headers, and a stable per-session ID. The User-Agent identifies this integration; no OpenCode binary is launched and no quota identities are rotated.
+Before each HTTP request, a scoped guard checks the model ID, approved endpoint, last-known free classification and lifecycle. It does not require a recent catalog fetch. It blocks redirects and paid fallback, and removes Authorization, x-api-key, and api-key headers before installing public/anonymous headers. Kilo requests carry no Authorization header. OVH uses a separate allowlisted header set: no caller credentials, Authorization, API keys, cookies, or payment headers. The User-Agent identifies this integration; no provider identities are rotated.
 
 Anonymous access can break if a service changes its policy or protocol requirements. This package does not promise permanent access, unlimited quota, universal tool support, or a particular response speed. An inference error does not blacklist a model or turn off tools to make a test pass.
 
@@ -266,7 +264,7 @@ HOME=/path/to/clean-home PI_CODING_AGENT_DIR=/path/to/clean-agent \
 
 This uses the actual production extension through Pi's loader, a six-request hard cap, a 210-second deadline, and a test-only 4,096-token output cap. It checks ordered successful read/write/edit/bash calls, actual nonce-bearing file contents, an independent Python SHA256 verifier, unchanged fixtures, declared response model IDs, exact thinking parameters, no credentials, and zero catalog fetches during inference. Add `--installed` after a clean `pi install` to load only the installed declaration, rather than adding the local entrypoint. All network traffic is real; the audit wrapper only records and restricts it. Live artifacts are kept outside the release.
 
-For separate Kilo/Zen live inference checks, use `scripts/verify-ui-thinking-live.mjs` in an isolated HOME with `PI_CODING_AGENT_DIR` set to a fresh directory. It runs Pi's actual agent session with the default read, write, edit, and bash tools, checks thinking parameters, and verifies real file changes. It normally makes about 14 inference requests across the two Beam models, with SDK/agent retries disabled and a 24-request budget. `--toggle-only` runs the separate toggle checks. Model errors stop the run; inspect the result JSON and wire log rather than relying on a confident final answer.
+For separate Kilo live inference checks, use `scripts/verify-ui-thinking-live.mjs` in an isolated HOME with `PI_CODING_AGENT_DIR` set to a fresh directory. It runs Pi's actual agent session with the default read, write, edit, and bash tools, checks thinking parameters, and verifies real file changes. It normally makes about 14 inference requests across two Kilo models, with SDK/agent retries disabled and a 24-request budget. `--toggle-only` runs the separate toggle checks. Model errors stop the run; inspect the result JSON and wire log rather than relying on a confident final answer.
 
 The broader opt-in CLI harnesses, `scripts/live_pi.py` and `scripts/observe_live.py`, are also included. They require Python 3 and the `PI_NODE`, `PI_CLI`, `PI_TEST_DISPATCHER`, and `FREE_TEST_DIR` environment variables. Their test-only wire recorder is never loaded by the extension. The Python census accepts gzip and legacy plain-JSON caches. An isolated HOME is not an operating-system sandbox for bash. Wire evidence may contain prompts and tool content; keep it private.
 
@@ -277,10 +275,6 @@ Do not commit or publish credentials, `.npmrc`, caches, or live test outputs. Re
 ## Catalog sources
 
 - https://api.kilo.ai/api/gateway/models
-- https://opencode.ai/zen/v1/models
-- https://models.opencode.ai/api.json
-- https://models.dev/api.json
-- https://pi.dev/api/models/providers/opencode?types=chat,image,classifier
 - https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/models
 - https://catalog.endpoints.ai.ovh.net/rest/v1/models_v2
 
@@ -346,7 +340,7 @@ another extension on subsequent session/model transitions. Shutdown releases it
 only if ownership has not already been relinquished.
 
 
-## General Free Pool (version 0.1.7)
+## General Free Pool
 
 The OVH chapters above describe preserved legacy behavior. `/free-pool` adds a single mixed-provider scheduler on that foundation; `/free-ovh-pool` keeps the old editor until a general configuration is saved, then forwards to the new settings. No automatic additions or automatic activation occur. A first general review can import the old selection, thinking, waits and enablement exactly; existing runtime quota remains conservative. The legacy file remains untouched.
 
@@ -358,7 +352,7 @@ After a finite pass allowance is exhausted, selected models remain managed but p
 
 The established OVH ledger and durable reservations remain unchanged. General-pool HTTP 429 before meaningful activity may now select another untried ready compatible model within the same logical response. No identity is retried and no completed tool effect is rerun. Text/thinking/tool-call activity commits the attempt permanently. Persistence failure, caller abort, changed eligibility, unsafe boundary and explicit broader cooldowns still prevent another send. Auth/network/invalid-request/other HTTP failures do not authorize replay. The separate owned silent-start deadline retains its established behavior.
 
-Kilo/Zen unknown 429 gates only the exact requested model, not its whole service. Retry-After supplies time, never inferred scope. Without a valid value the existing 61-second package backoff applies only to that model. A recognized explicit X-Ratelimit-Scope value (provider, service, global, account, ip; case-insensitive) creates a server-declared service gate. Generic prose and the user-reported upstream_provider_shared_pool body field do not create blanket gates. Every actual attempt, including rejection, consumes its conservative reservation. When all untried candidates are unavailable the chain terminates rather than looping, while continuous scheduling remains enabled for later requests.
+Kilo unknown 429 gates only the exact requested model, not its whole service. Retry-After supplies time, never inferred scope. Without a valid value the existing 61-second package backoff applies only to that model. A recognized explicit X-Ratelimit-Scope value (provider, service, global, account, ip; case-insensitive) creates a server-declared service gate. Generic prose and the user-reported upstream_provider_shared_pool body field do not create blanket gates. Every actual attempt, including rejection, consumes its conservative reservation. When all untried candidates are unavailable the chain terminates rather than looping, while continuous scheduling remains enabled for later requests.
 
 Public native Provider registration on Pi 1.4.0 guards every declared API instead of the compatibility registration's single-API stream hook. Complete model/classifier inventories remain visible. Verified pool transports are native OpenAI Completions/Responses. Anthropic's SDK beta-query endpoint is not accepted by the unchanged anonymous guard; it is explicitly unavailable in pool status while retained in the catalog. There is no credential lookup, identity impersonation or route-guard bypass to make a model pass.
 
@@ -372,7 +366,7 @@ npm run verify:general-loader
 
 The scheduler monkey suite uses 32 deterministic seeds × 500 events, an independent transition/persistence oracle, exact replay, and failure-recorder checks. It combines weighted sends, absent/incompatible visits, time changes, provider cooldowns, disk failures, edits, explicit resets and valid/corrupt runtime restarts. Seed/trace failures go to `test-results/free-pool-SEED-failure.json` (override with `FREE_POOL_MONKEY_FAILURE_DIR`); if writing fails, the prefix is included in the error. This scheduler simulation uses controlled eligibility, with separate actual Pi SDK/session tests for production wiring, transport, tools and cancellation. Existing footer monkey tests are retained.
 
-The general bundled-CLI verifier tests bare-folder versus installed-peer loading, Kilo/Zen-only and mixed pools, actual native SDK fixture POSTs, persisted rotation across separate CLI processes, and finite pauses. All sockets are blocked and every response is local; these fixture POSTs are not live inference. No automated suite proves all schedules safe or certifies Android or current provider availability.
+The general bundled-CLI verifier tests bare-folder versus installed-peer loading, Kilo-only and mixed pools, actual native SDK fixture POSTs, persisted rotation across separate CLI processes, and finite pauses. All sockets are blocked and every response is local; these fixture POSTs are not live inference. No automated suite proves all schedules safe or certifies Android or current provider availability.
 
 
 ### Pool diagnostics and provenance
@@ -389,7 +383,7 @@ fail-closed rules. Shorter later headers do not become the attributed origin of
 a longer older barrier. OVH effective ledger gates may include earlier constraints;
 quota/reservation waits are not labelled as new provider rejections.
 
-The current Kilo/Zen policy is model-local by default, with an explicitly declared header required for a broader gate. The provenance record's scope explains the chosen enforcement. The 61-second fallback is labelled package policy, not provider capacity. The old blanket-blocking and no-429-failover policy is superseded for the general pool; standalone/legacy OVH behavior is not broadened.
+The current Kilo policy is model-local by default, with an explicitly declared header required for a broader gate. The provenance record's scope explains the chosen enforcement. The 61-second fallback is labelled package policy, not provider capacity. The old blanket-blocking and no-429-failover policy is superseded for the general pool; standalone/legacy OVH behavior is not broadened.
 
 Current status uses a timestamped local snapshot, not the cached text of an old
 selection. The last selection and bounded response history are labelled historical.
@@ -423,7 +417,7 @@ existing scheduler/footer monkey and real native SDK/CLI fixture tests.
 
 This local update carries the user's explicit choice of continuous scheduling and
 pre-activity 429 failover. Existing schema-2 general files without a policy marker
-are upgraded atomically to policyVersion 3. All recoverable Kilo/Zen response
+are upgraded atomically to policyVersion 3. All recoverable Kilo response
 model deadlines are preserved locally, not only the longest old blanket deadline.
 Unrecoverable package-inferred blanket gates are retired with a visible notice;
 OVH quota, reservations, cooldowns and enablement/consent remain unchanged. Valid
@@ -448,3 +442,15 @@ attempt oracle, mixing ready/missing candidates, successes, 429s, auth/server er
 post-activity rejection and network failures. Seed-zero replay and persisted/inline
 failure recording are covered. This is reproducible fixture coverage, not live or
 phone certification or an exhaustive guarantee.
+
+## Provider retirement in 0.1.8
+
+Only Kilo and OVH are registered by this extension. The retired provider namespace, routes, headers, native classifier dependency, discovery registries and UI choices are removed. Models offered independently by Kilo or OVH are not filtered by their names. Kilo's own upstream `opencode` metadata fields still describe Kilo variants and adapters; reading those fields does not contact or register OpenCode.
+
+Saved catalogs are migrated in memory before validation and registration. Only removed-provider entries, source documents and their events are retired. Remaining entries, first-seen dates, lifecycle evidence and history are preserved, as are the original source timestamps. Invalid remaining data is still rejected. Loading does not rewrite the disk cache or fetch metadata.
+
+Thinking preferences for removed models are discarded from the active extension state. Other preferences are unchanged. Pools containing removed members retain their remaining order, weights, thinking choices, cycle counters, cooldowns and OVH reservations, but are disabled and paused with a durable review requirement. Re-enablement requires explicit review, consent and restart. Failed persistence does not enable the pool or replace the old disk state. No active-model replacement is selected automatically.
+
+The new Pages contract is version 2. The workflow publishes only v2 paths. The existing v1 feed is not copied into future site artifacts. Older packages are not modified or unpublished; when their v1 feed is unavailable they retain their existing direct-source fallback behavior. The v2 client itself fetches only v2 or the three Kilo/OVH sources.
+
+On the backend, only a missing v2 endpoint (HTTP 404) permits a one-way attempt to migrate the previous v1 snapshot. Migration accepts only the pinned published 0.1.7 production-rules fingerprint, checks payload integrity and fully validates the derived v2 Kilo/OVH semantics. It preserves remaining LKG and history rather than bootstrapping an empty catalog. Corrupt/incompatible existing v2 data or network/HTTP failures do not authorize fallback or a history reset. See CATALOG-BACKEND.md.

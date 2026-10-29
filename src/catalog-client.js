@@ -1,10 +1,11 @@
-// Pages-first adapter. The three fingerprinted production rule modules remain unchanged.
+// Pages-first adapter with strict, versioned two-provider snapshot validation.
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { gunzipSync } from 'node:zlib';
 import { Catalog, SOURCES, reconcile, validateState, atomicJSON, isGzip } from './catalog.js';
 import { lifecycle, explicitDeadlines } from './lifecycle.js';
+import { migrateCatalogState } from './provider-removal.js';
 import { PREVIOUS_URL, MAX_SOURCE_BYTES, MAX_SNAPSHOT_BYTES, canonical, dataHash, rulesHash, validateSnapshot, asState } from './snapshot-contract.js';
 
 export const PAGES_URL = PREVIOUS_URL;
@@ -28,7 +29,7 @@ export async function metadataResponse(fetcher, url, { signal, timeout = 6000, p
   aborted(combined);
   const pending = Promise.resolve().then(() => fetcher(target, {
     method:'GET',redirect:'error',credentials:'omit',cache:'no-store',signal:combined,
-    headers:{accept:'application/json','cache-control':'no-cache','user-agent':'pi-free-catalog/0.1.7'},
+    headers:{accept:'application/json','cache-control':'no-cache','user-agent':'pi-free-catalog/0.1.8'},
   }));
   // A non-cooperative fetch may settle after cancellation; discard its late body too.
   void pending.then(response=>{if(combined.aborted)cancelBody(response.body);},()=>{});
@@ -90,7 +91,7 @@ export class PagesCatalog extends Catalog {
     try{
       assert.ok((await stat(this.file)).size<=CACHE_LIMIT,'Cache file exceeds size limit');
       const bytes=await readFile(this.file);const text=isGzip(bytes)?gunzipSync(bytes,{maxOutputLength:CACHE_LIMIT}).toString('utf8'):bytes.toString('utf8');
-      this.state=checkLocal(applyDeadlines(JSON.parse(text),this.now()),this.now());
+      this.state=checkLocal(applyDeadlines(migrateCatalogState(JSON.parse(text)),this.now()),this.now());
     }catch(error){if(error.code!=='ENOENT')this.cacheWarning='Saved catalog could not be validated; a network refresh will be attempted.';}
   }
   async commit(state,signal){

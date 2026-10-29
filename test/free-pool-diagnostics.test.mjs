@@ -9,7 +9,7 @@ import {readCooldownEvidence,MAX_COOLDOWN_EVIDENCE,activityDetail} from '../src/
 import {boundedActivity,activityText,showPoolStatus} from '../src/pool-activity.js';
 import {poolStream} from '../src/ovh-pool-stream.js';
 import {editFreePool} from '../src/free-pool-editor.js';
-import {environment,K,Z,A,context} from './free-pool-helper.mjs';
+import {environment,K,K2,A,context} from './free-pool-helper.mjs';
 const reply=(status,after)=>new Response('',{status,headers:after===undefined?{}:{'retry-after':after}});
 const drain=async s=>{for await(const _ of s){}return s.result();};
 async function restored(x,raw=x.disk){
@@ -19,7 +19,7 @@ async function restored(x,raw=x.disk){
 }
 for(const [status,after,source,state] of [[429,undefined,'fallback','missing'],[429,'nonsense','fallback','invalid'],[429,'12','retry-after','valid'],[503,'4','retry-after','valid'],[200,'3','retry-after','valid']])test(`cooldown provenance HTTP ${status} Retry-After ${after} is explicit and survives restart`,async()=>{
  const x=environment();await x.enable();await x.pool.observe('reflection/beam-free',reply(status,after),{},'kilo');
- const until=x.now+(source==='fallback'?61000:Number(after)*1000);assert.equal(x.pool.until(K),until);assert.equal(x.pool.until(Z),0);
+ const until=x.now+(source==='fallback'?61000:Number(after)*1000);assert.equal(x.pool.until(K),until);assert.equal(x.pool.until(K2),0);
  assert.deepEqual(x.disk.cooldownEvidence,[{service:'kilo',model:'reflection/beam-free',status,at:x.now,until,scope:'model',source,retryAfterState:state,retryAfter:source==='fallback'?null:after}]);
  const p=await restored(x);assert.deepEqual(p.cooldownEvidence,x.pool.cooldownEvidence);assert.equal(p.until(K),until);
  assert.match(p.cooldownStatus(K),new RegExp('HTTP '+status));assert.match(p.cooldownStatus(K),/model-local package handling; upstream quota scope is unverified/);
@@ -28,7 +28,7 @@ for(const [status,after,source,state] of [[429,undefined,'fallback','missing'],[
  p.close();x.pool.close();
 });
 test('Retry-After HTTP date is retained exactly, without converting it into an invented capacity',async()=>{
- const x=environment();await x.enable();const date=new Date(20000).toUTCString();await x.pool.observe('beam-free',reply(429,date),{},'zen');assert.equal(x.pool.until(Z),20000);assert.match(x.pool.cooldownStatus(Z),/Thu, 01 Jan 1970/);assert.equal(x.disk.cooldownEvidence[0].retryAfter,date);
+ const x=environment();await x.enable();const date=new Date(20000).toUTCString();await x.pool.observe('thinkingmachines/inkling-small:free',reply(429,date),{},'kilo');assert.equal(x.pool.until(K2),20000);assert.match(x.pool.cooldownStatus(K2),/Thu, 01 Jan 1970/);assert.equal(x.disk.cooldownEvidence[0].retryAfter,date);
 });
 for(const status of [200,401,403,503])test(`HTTP ${status} without Retry-After invents no Kilo cooldown`,async()=>{
  const x=environment();await x.enable();await x.pool.observe('reflection/beam-free',reply(status),{},'kilo');assert.equal(x.pool.until(K),0);assert.deepEqual(x.pool.cooldownEvidence,[]);
@@ -38,7 +38,7 @@ test('shorter later headers do not falsely become the origin of a longer active 
  assert.match(x.pool.cooldownStatus('["kilo","original"]'),/kilo\/original; HTTP 429/);assert.doesNotMatch(x.pool.cooldownStatus('["kilo","original"]'),/kilo\/later/);assert.equal(x.pool.cooldownEvidence.length,2);
 });
 test('expired current cooldowns and stale historical checks are clearly separated',async()=>{
- const x=environment();await x.enable();await x.pool.observe('reflection/beam-free',reply(429,'2'),{},'kilo');x.catalog.state.entries[Z].listed=false;
+ const x=environment();await x.enable();await x.pool.observe('reflection/beam-free',reply(429,'2'),{},'kilo');x.catalog.state.entries[K2].listed=false;
  await assert.rejects(x.pool.choose(x.model(K),context(),{}),/cooldown-active/);const stamp=x.pool.lastCheckAt;x.advance(3000);
  const text=x.pool.report(),current=text.split('Last selection check')[0];assert.match(current,/no active local cooldown/);assert.doesNotMatch(current,/cooling \d+s/);assert.match(text,/HISTORICAL; not current readiness/);assert.match(text,/cooling down/);assert.equal(x.pool.lastCheckAt,stamp);
  const disk=structuredClone(x.disk),r=structuredClone(x.pool.rotation);x.pool.report();x.pool.preview();assert.deepEqual(x.disk,disk);assert.deepEqual(x.pool.rotation,r);assert.equal(x.sends,0);
@@ -64,7 +64,7 @@ test('OVH rolling reservations explain a cooldown without inventing a new HTTP r
  const x=environment({models:[A,K],weights:{[A]:2},scheduling:'round-robin'});await x.enable();await x.next();await x.next();assert.match(x.pool.cooldownStatus(A),/OVH (?:durable reservation|conservative quota) ledger \(not a new provider rejection\)/);assert.deepEqual(x.pool.cooldownEvidence,[]);
 });
 test('preview begins at remaining weighted visit and stops at finite allowance without changing state',async()=>{
- const x=environment({weights:{[K]:3,[Z]:4},cycles:2});await x.enable();await x.next();await x.next();const disk=structuredClone(x.disk);const text=x.pool.preview();assert.match(text,/reserved 2\/3; remaining 1/);assert.match(text,/1\. .*kilo.*× 1 remaining in pass 1/);assert.match(text,/2\. .*zen.*× 4 remaining in pass 1/);assert.match(text,/Then PAUSE/);assert.match(text,/NOT counts of successful answers/);assert.deepEqual(x.disk,disk);assert.equal(x.sends,2);
+ const x=environment({weights:{[K]:3,[K2]:4},cycles:2});await x.enable();await x.next();await x.next();const disk=structuredClone(x.disk);const text=x.pool.preview();assert.match(text,/reserved 2\/3; remaining 1/);assert.match(text,/1\. .*kilo.*× 1 remaining in pass 1/);assert.match(text,/2\. .*kilo.*× 4 remaining in pass 1/);assert.match(text,/Then PAUSE/);assert.match(text,/NOT counts of successful answers/);assert.deepEqual(x.disk,disk);assert.equal(x.sends,2);
 });
 test('paused and priority previews do not present an actionable weighted rotation',async()=>{
  const x=environment({cycles:1});await x.enable();await x.next();await x.next();assert.match(x.pool.preview(),/No upcoming visits while PAUSED/);assert.doesNotMatch(x.pool.preview(),/remaining in pass/);
@@ -84,7 +84,7 @@ test('no-compatible, finite allowance and readiness deadline are distinct failur
  const x=environment();await x.enable();x.pool.reason=()=> 'Tools are not explicitly supported';let activity;
  const a=await drain(poolStream({pool:x.pool,model:x.model(K),context:context(),onHandoff:async()=>{},dispatch:()=>assert.fail('wire'),onActivity:v=>activity=v}));assert.match(a.errorMessage,/no-compatible-model/);assert.equal(activity.failure,'no-compatible-model');assert.ok(activity.steps.every(s=>s.detail==='tools-unverified'));
  const y=environment({cycles:1});await y.enable();y.pool.reason=()=> 'Tools are not explicitly supported';const b=await drain(poolStream({pool:y.pool,model:y.model(K),context:context(),onHandoff:async()=>{},dispatch:()=>assert.fail('wire'),onActivity:v=>activity=v}));assert.match(b.errorMessage,/finite-allowance-exhausted/);assert.equal(activity.failure,'finite-allowance-exhausted');assert.equal(y.sends,0);
- const z=environment();await z.enable({maxWaitMs:20});await z.pool.observe('reflection/beam-free',reply(429),{},'kilo');await z.pool.observe('beam-free',reply(429),{},'zen');z.pool.sleep=()=>new Promise(()=>{});
+ const z=environment();await z.enable({maxWaitMs:20});await z.pool.observe('reflection/beam-free',reply(429),{},'kilo');await z.pool.observe('thinkingmachines/inkling-small:free',reply(429),{},'kilo');z.pool.sleep=()=>new Promise(()=>{});
  const c=await drain(poolStream({pool:z.pool,model:z.model(K),context:context(),onHandoff:async()=>{},dispatch:()=>assert.fail('wire'),onActivity:v=>activity=v}));assert.match(c.errorMessage,/readiness-wait-expired/);assert.match(c.errorMessage,/response-start timer did not start/);assert.equal(activity.failure,'readiness-wait-expired');assert.equal(activity.steps.find(s=>s.state==='waiting').model,'Free Pool');assert.equal(z.sends,0);
 });
 test('draft preview shows unsaved scheduling without saving, resetting quota, fetching or selecting a model',async()=>{

@@ -19,44 +19,15 @@ export default function (pi) {
   pi.on('session_start', async (_event, ctx) => {
     const models = ctx.modelRegistry
       .getAll()
-      .filter((m) => ['free-kilo', 'free-zen'].includes(m.provider));
-    const classifiers = ctx.modelRegistry
-      .getModelsOfType('classifier')
-      .filter((m) => m.provider === 'free-zen');
-    let result;
-    if (process.env.FREE_TEST_CLASSIFIER === '1') {
-      const model = classifiers.find((m) => m.id === 'jev-1.13-free');
-      const context = {
-        state: { text: 'The user asks what 17 multiplied by 19 equals.' },
-        questions: {
-          topic: {
-            type: 'choice',
-            instructions: 'Choose the topic.',
-            criteria: {
-              math: 'An arithmetic or mathematics question.',
-              other: 'Any other topic.',
-            },
-          },
-        },
-      };
-      try {
-        result = await ctx.modelRegistry.classify(model, context, {
-          signal: AbortSignal.timeout(30000),
-        });
-      } catch (e) {
-        result = { error: String(e) };
-      }
-    }
+      .filter((m) => ['free-kilo', 'free-ovh'].includes(m.provider));
     const data = {
       at: new Date().toISOString(),
       models,
-      classifiers,
       available: ctx.modelRegistry
         .getAvailable()
-        .filter((m) => ['free-kilo', 'free-zen'].includes(m.provider))
+        .filter((m) => ['free-kilo', 'free-ovh'].includes(m.provider))
         .map((m) => ({ id: m.id, provider: m.provider })),
       tools: pi.getActiveTools(),
-      classifierResult: result,
     };
     writeFileSync(process.env.FREE_TEST_OUTPUT, JSON.stringify(data, null, 2));
     process.exit(0);

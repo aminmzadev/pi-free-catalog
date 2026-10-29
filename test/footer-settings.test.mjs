@@ -96,12 +96,12 @@ test('count eligibility uses actual free chat catalog entries, independently of 
     paid: entry('chat', { classification: 'paid' }), retired: entry('chat', { lifecycle: 'retired' }),
     unlisted: entry('chat', { listed: false }), uncertain: entry('chat', { classification: 'unknown' }),
   };
-  const zen = { chat: entry(), tiny: entry('classifier') };
+  const removed = { chat: entry(), tiny: entry('classifier') };
   const ovh = { chat: entry('chat', { requiresKey: true }) };
-  for (const [service, rows] of Object.entries({ kilo, zen, ovh })) for (const [id, row] of Object.entries(rows)) state.entries[`${service}:${id}`] = { ...row, service };
-  assert.equal(chatCountsText(state, 200), 'Free chat: Kilo 2 · Zen 1 · OVH 1');
-  assert.equal(chatCountsText(state, 25), 'Free chat: K2 Z1 O1');
-  assert.equal(chatCountsText(state, 10), 'K2 Z1 O1');
+  for (const [service, rows] of Object.entries({ kilo, removed, ovh })) for (const [id, row] of Object.entries(rows)) state.entries[`${service}:${id}`] = { ...row, service };
+  assert.equal(chatCountsText(state, 200), 'Free chat: Kilo 2 · OVH 1');
+  assert.equal(chatCountsText(state, 20), 'Free chat: K2 O1');
+  assert.equal(chatCountsText(state, 6), 'K2 O1');
   for (let width = 1; width <= 120; width++) assert.ok(visibleWidth(chatCountsText(state, width)) <= width);
 });
 
@@ -121,7 +121,7 @@ test('pool wait/response/abort/error cleanup never owns or clears persistent cou
       assert.equal(intervals.size, 1); assert.equal(terminal.listenerCount('resize'), 3);
       activity.clear(ctx);
       assert.equal(intervals.size, 0); assert.equal(terminal.listenerCount('resize'), 2);
-      assert.equal(statuses.get('free-catalog'), 'Free chat: Kilo 0 · Zen 0 · OVH 0');
+      assert.equal(statuses.get('free-catalog'), 'Free chat: Kilo 0 · OVH 0');
       assert.equal(statuses.get('foreign'), 'alive');
     }
     terminal.columns = 7; terminal.emit('resize'); assert.ok(visibleWidth(statuses.get('free-catalog')) <= 7);

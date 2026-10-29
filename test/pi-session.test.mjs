@@ -20,22 +20,22 @@ test('real Pi session: slash <-> native selector, switches, footer and off wire 
   ({session}=await createAgentSession({cwd:dir,agentDir:dir,resourceLoader:loader,settingsManager,sessionManager:SessionManager.inMemory(dir)}));
   await session.bindExtensions({mode:'tui',uiContext:{setStatus:(k,v)=>v===undefined?statuses.delete(k):statuses.set(k,v),setFooter:factory=>{footerFactory=factory;},notify:()=>{}},onError:e=>errors.push(e)});
   const model=(s,id)=>session.modelRuntime.getModel(s,id);
-  const beam=model('free-zen','beam-free'),laguna=model('free-kilo','poolside/laguna-s-2.1:free');assert.ok(beam&&laguna);
+  const beam=model('free-kilo','thinkingmachines/inkling-small:free'),laguna=model('free-kilo','poolside/laguna-s-2.1:free');assert.ok(beam&&laguna);
   await session.setModel(beam);await session.prompt('/free-thinking max');assert.equal(session.thinkingLevel,'max');
-  await session.prompt('17*19?');assert.equal(wires.at(-1).reasoning_effort,'max');
-  session.setThinkingLevel('low');await session.prompt('17*19?');assert.equal(wires.at(-1).reasoning_effort,'low');
-  await session.prompt('/free-thinking default');await session.prompt('17*19?');assert.equal(wires.at(-1).reasoning_effort,undefined);assert.equal(statuses.get('free-thinking'),undefined);
-  session.setThinkingLevel('high');await session.prompt('17*19?');assert.equal(wires.at(-1).reasoning_effort,'high');assert.equal(statuses.get('free-thinking'),undefined);
+  await session.prompt('17*19?');assert.equal(wires.at(-1).reasoning?.effort,'max');
+  session.setThinkingLevel('low');await session.prompt('17*19?');assert.equal(wires.at(-1).reasoning?.effort,'low');
+  await session.prompt('/free-thinking default');await session.prompt('17*19?');assert.equal(wires.at(-1).reasoning?.effort,undefined);assert.equal(statuses.get('free-thinking'),undefined);
+  session.setThinkingLevel('high');await session.prompt('17*19?');assert.equal(wires.at(-1).reasoning?.effort,'high');assert.equal(statuses.get('free-thinking'),undefined);
   await session.prompt('/free-thinking max');await session.setModel(laguna);await session.prompt('/free-thinking instant');assert.equal(session.thinkingLevel,'off');await session.prompt('17*19?');assert.deepEqual(wires.at(-1).reasoning,{enabled:false,effort:'none'});
   session.setThinkingLevel('medium');await session.prompt('17*19?');assert.deepEqual(wires.at(-1).reasoning,{enabled:true,effort:'high'});
   session.setThinkingLevel('off');await session.prompt('17*19?');assert.deepEqual(wires.at(-1).reasoning,{enabled:false,effort:'none'});
   await session.setModel(beam);assert.equal(session.thinkingLevel,'max'); // restored, not erased by Pi's preliminary level event
-  await session.prompt('17*19?');assert.equal(wires.at(-1).reasoning_effort,'max');
+  await session.prompt('17*19?');assert.equal(wires.at(-1).reasoning?.effort,'max');
   assert.equal(footerFactory,undefined);await session.prompt('/free-footer compact');assert.equal(typeof footerFactory,'function');
   const data={getGitBranch:()=>null,getExtensionStatuses:()=>statuses,getAvailableProviderCount:()=>4,onBranchChange:()=>()=>{}};
-  const component=footerFactory({requestRender:()=>{}},null,data);assert.doesNotMatch(component.render(180)[1],/free-zen/);assert.match(component.render(180)[1],/beam-free/);
+  const component=footerFactory({requestRender:()=>{}},null,data);assert.doesNotMatch(component.render(180)[1],/free-kilo/);assert.match(component.render(180)[1],/inkling-small/);
   await session.prompt('/free-footer default');assert.equal(footerFactory,undefined);component.dispose();await session.prompt('/free-footer compact');assert.equal(typeof footerFactory,'function');
-  const saved=JSON.parse(await readFile(join(dir,'free-catalog/thinking.json'),'utf8'));assert.equal(saved[JSON.stringify(['zen','beam-free'])],'max');assert.equal(saved[JSON.stringify(['kilo',laguna.id])],'auto');
+  const saved=JSON.parse(await readFile(join(dir,'free-catalog/thinking.json'),'utf8'));assert.equal(saved[JSON.stringify(['kilo','thinkingmachines/inkling-small:free'])],'max');assert.equal(saved[JSON.stringify(['kilo',laguna.id])],'auto');
   assert.deepEqual(errors,[]);assert.equal(wires.length,8);
  }finally{if(session){await session.extensionRunner.emit({type:'session_shutdown'});session.dispose();}globalThis.fetch=beforeFetch;if(beforeDir===undefined)delete process.env.PI_CODING_AGENT_DIR;else process.env.PI_CODING_AGENT_DIR=beforeDir;await rm(dir,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
 });

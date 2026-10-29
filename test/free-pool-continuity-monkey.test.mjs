@@ -8,7 +8,7 @@ import {createAssistantMessageEventStream} from '@earendil-works/pi-ai/compat';
 import {poolStream,POOL_REQUEST} from '../src/ovh-pool-stream.js';
 import {poolKey} from '../src/free-pool.js';
 import {environment,context} from './free-pool-helper.mjs';
-const keys=['["kilo","a"]','["kilo","b"]','["zen","c"]'];
+const keys=['["kilo","a"]','["kilo","b"]','["kilo","c"]'];
 const seedText=process.env.FREE_POOL_CONTINUITY_SEED,steps=Number(process.env.FREE_POOL_CONTINUITY_STEPS??200);
 if(seedText!==undefined&&(!/^\d+$/.test(seedText)||!Number.isSafeInteger(Number(seedText))||Number(seedText)>0xffffffff))throw Error('FREE_POOL_CONTINUITY_SEED must be uint32');
 if(!Number.isSafeInteger(steps)||steps<1||steps>10000)throw Error('FREE_POOL_CONTINUITY_STEPS must be 1..10000');

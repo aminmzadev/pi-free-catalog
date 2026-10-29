@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { createAssistantMessageEventStream } from '@earendil-works/pi-ai/compat';
 import { poolStream,POOL_REQUEST } from '../src/ovh-pool-stream.js';
 import { FreePool,poolKey } from '../src/free-pool.js';
-import { environment,K,Z,A,B,context } from './free-pool-helper.mjs';
+import { environment,K,K2,A,B,context } from './free-pool-helper.mjs';
 const done=(model,text='done')=>({role:'assistant',content:[{type:'text',text}],api:model.api,provider:model.provider,model:model.id,stopReason:'stop',timestamp:1});
 function output(model){const s=createAssistantMessageEventStream(),m=done(model);s.push({type:'done',reason:'stop',message:m});s.end(m);return s;}
 const run=async stream=>{for await(const _ of stream){}return stream.result();};
@@ -36,14 +36,14 @@ test('metadata eligibility is checked again after disk reservation and before th
  assert.equal((await run(stream)).stopReason,'error');assert.equal(sends,0);assert.equal(x.disk.rotation.cursor,1);
 });
 test('same model ID on different providers is not mistaken for an attempted identity',async()=>{
- const keys=['["kilo","same"]','["zen","same"]'];const x=environment({models:keys,synthetic:true});await x.enable({responseStartTimeoutMs:100});const sends=[],handoffs=[];
+ const keys=['["kilo","same"]','["kilo","second"]'];const x=environment({models:keys,synthetic:true});await x.enable({responseStartTimeoutMs:100});const sends=[],handoffs=[];
  const stream=poolStream({pool:x.pool,model:x.model(keys[0]),context:context(),onHandoff:async(a,b)=>handoffs.push([poolKey(a),poolKey(b)]),dispatch:async(m,_c,o)=>{await o[POOL_REQUEST].begin();sends.push(poolKey(m));return sends.length===1?createAssistantMessageEventStream():output(m);}});
  assert.equal((await run(stream)).stopReason,'stop');assert.deepEqual(sends,keys);assert.deepEqual(handoffs,[[keys[0],keys[1]]]);
 });
 test('finite cycle is not exceeded by response-start timeout failover',async()=>{
  const x=environment({cycles:1});await x.enable({responseStartTimeoutMs:10});const sends=[];
  const stream=poolStream({pool:x.pool,model:x.model(K),context:context(),onHandoff:async()=>{},dispatch:async(m,_c,o)=>{await o[POOL_REQUEST].begin();sends.push(poolKey(m));return createAssistantMessageEventStream();}});
- const result=await run(stream);assert.equal(result.stopReason,'error');assert.deepEqual(sends,[K,Z]);assert.equal(x.pool.rotation.paused,true);assert.equal(x.pool.busy,null);
+ const result=await run(stream);assert.equal(result.stopReason,'error');assert.deepEqual(sends,[K,K2]);assert.equal(x.pool.rotation.paused,true);assert.equal(x.pool.busy,null);
 });
 test('closed or stale editors cannot reauthorize a cycle',async()=>{
  const x=environment();await x.enable();const old=x.pool.config;await x.pool.saveDraft({...old,maxWaitMs:1},old,{consent:true});await assert.rejects(x.pool.saveDraft(old,old,{restart:true,consent:true}),/changed/);

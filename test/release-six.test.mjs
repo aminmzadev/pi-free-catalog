@@ -29,20 +29,20 @@ test('F1: inspect separates auto control, Pi level and exact effective native ch
  await x.commands.get('free-thinking').handler('auto',x.ctx);await x.commands.get('free-thinking').handler('',x.ctx);p=JSON.parse(x.output.at(-1));assert.equal(p.controlMode,'auto');assert.equal(p.effectiveNativeMode,'high');
 }));
 
-test('F2: persistent chat-only footer counts preserve classifier registration',()=>withFactory(async x=>{
- const counts=summary(reconcile(sources()));assert.notEqual(counts.zen.free,counts.zen.freeChat);assert.equal(counts.kilo.freeChat,17);assert.equal(counts.zen.freeChat,9);
- assert.equal(x.statuses.get('free-catalog'),'Free chat: Kilo 17 · Zen 9 · OVH 10');
- assert.equal(x.configs.get('free-zen').models.find(m=>m.id==='jev-1.13-free').type,'classifier');
+test('F2: persistent chat-only footer counts exclude non-chat operations',()=>withFactory(async x=>{
+ const counts=summary(reconcile(sources()));assert.notEqual(counts.ovh.free,counts.ovh.freeChat);assert.equal(counts.kilo.freeChat,17);assert.equal(counts.ovh.freeChat,10);
+ assert.equal(x.statuses.get('free-catalog'),'Free chat: Kilo 17 · OVH 10');
+ assert.equal(x.configs.get('free-kilo').classifiers,undefined);
  const d=structuredClone(fixtures);d.kilo.data.push({id:'new-classifier-not-chat',type:'image',isFree:true});x.setFetch(fetcher(d));await x.commands.get('free-refresh').handler('',x.ctx);
- assert.equal(x.statuses.get('free-catalog'),'Free chat: Kilo 17 · Zen 9 · OVH 10');
+ assert.equal(x.statuses.get('free-catalog'),'Free chat: Kilo 17 · OVH 10');
  d.kilo.data.push({...d.kilo.data.find(row=>row.id==='reflection/beam-free'),id:'new-free-chat'});
  await x.commands.get('free-refresh').handler('',x.ctx);
- assert.equal(x.statuses.get('free-catalog'),'Free chat: Kilo 18 · Zen 9 · OVH 10');
+ assert.equal(x.statuses.get('free-catalog'),'Free chat: Kilo 18 · OVH 10');
  await x.commands.get('free-footer').handler('counts off',x.ctx);
  d.kilo.data.find(row=>row.id==='new-free-chat').type='embedding';
  await x.commands.get('free-refresh').handler('',x.ctx);assert.equal(x.statuses.get('free-catalog'),undefined);
  await x.commands.get('free-footer').handler('counts on',x.ctx);
- assert.equal(x.statuses.get('free-catalog'),'Free chat: Kilo 17 · Zen 9 · OVH 10');
+ assert.equal(x.statuses.get('free-catalog'),'Free chat: Kilo 17 · OVH 10');
 }));
 
 test('F3: actual Pi refresh shrinks max to low/high, normalizes auto via public Pi API, then reaches HTTP; explicit removed native override is not silently remapped',async()=>{
@@ -71,16 +71,7 @@ test('F4: factual expiration_date guards exact UTC boundary, survives outages an
  for(const bad of ['garbage','2026-02-30',null,123]){d.kilo.data.find(m=>m.id===id).expiration_date=bad;const s=reconcile(snapshots(d,t3),{},t3);assert.notEqual(s.entries[key].lifecycle,'retired');}
 });
 
-test('F5: historical and metadata-only Zen accept fresh provenance, retain exact old timestamps after bad pricing/outages, switch sources, and do not invent legacy dates',()=>{
- for(const id of ['beam-free','fledge-alpha-free']){
-  const key=recordKey('zen',id),first=reconcile(snapshots(fixtures,t1),{},t1),d=structuredClone(fixtures);d.zen.data=d.zen.data.filter(m=>m.id!==id);d.official.opencode.models[id].limit.context=12345;
-  const second=reconcile(snapshots(d,t2),first,t2),e=second.entries[key];assert.equal(e.listed,false);assert.equal(e.metadata.limit.context,12345);assert.equal(e.metadataProvenance.fetchedAt,t2);assert.equal(e.metadataRetained,false);
-  for(const name of ['official','modelsdev'])d[name].opencode.models[id].cost={};for(const m of (Array.isArray(d.pi)?d.pi:d.pi.data))if(m.id===id)m.cost={};
-  const third=reconcile(snapshots(d,t3),second,t3),r=third.entries[key];assert.equal(r.metadataRetained,true);assert.equal(r.metadataProvenance.fetchedAt,t2);assert.equal(thinkingProfile(r,third).provenance.fresh,false);assert.equal(thinkingProfile(r,third).provenance.fetchedAt,t2);assert.equal(r.listingOrigin,id==='beam-free'?'recorded-listed':'metadata-only');
-  const old=structuredClone(third);delete old.entries[key].metadataProvenance;const stale=snapshots(d,t3);for(const s of Object.values(stale))s.fresh=false;const fourth=reconcile(stale,old,t3);assert.equal(fourth.entries[key].metadataProvenance.fetchedAt,null);assert.equal(fourth.entries[key].metadataRetained,true);
-  d.modelsdev.opencode.models[id].cost={input:0,output:0};const fifth=reconcile(snapshots(d,t3),third,t3);assert.equal(fifth.entries[key].evidence,'modelsdev');assert.equal(fifth.entries[key].metadataProvenance.fetchedAt,t3);assert.equal(fifth.entries[key].metadataRetained,false);
- }
-});
+
 
 test('F6: catalog and wire share every thinking field including enable_thinking; unrelated fields and terminal escapes cannot leak into displayed controls',()=>{
  const s=reconcile(sources()),e=s.entries[recordKey('kilo','reflection/beam-free')];

@@ -18,13 +18,13 @@ const send=(f,body={model:id},init={})=>f(OVH_BASE+'/chat/completions',{method:'
 
 test('OVH factual inventory: all 22 records retained; 10 chat, 12 other, nine declared tool-capable, not 22 agent-tested models',()=>{
  const s=state(),n=summary(s).ovh,models=registrations(s,'ovh');
- assert.equal(PROVIDERS.ovh,'free-ovh');assert.equal(Object.keys(SOURCES).length,7);
+ assert.equal(PROVIDERS.ovh,'free-ovh');assert.equal(Object.keys(SOURCES).length,3);
  assert.equal(n.listed,22);assert.equal(n.freeChat,10);assert.equal(n.otherFree,12);assert.equal(models.length,10);
  assert.equal(Object.values(s.entries).filter(e=>e.service==='ovh'&&e.type==='chat'&&e.metadata.tool_call).length,9);
  assert.ok(models.every(m=>m.type==='chat'&&m.baseUrl===OVH_BASE&&m.api==='openai-completions'));
  assert.ok(!models.some(m=>m.id==='bge-m3'||m.id.includes('whisper')||m.id.includes('Guard')));
- assert.equal(registrations(s,'kilo').length,17);assert.equal(registrations(s,'zen').length,10);
- assert.ok(registrations(s,'zen').some(m=>m.type==='classifier'));
+ assert.equal(registrations(s,'kilo').length,17);
+ assert.ok(registrations(s,'kilo').every(m=>m.type==='chat'));
 });
 
 test('OVH exact identity/alias join rejects fuzzy names, substrings and ambiguous aliases; unknown runtime models remain visible but cannot infer',()=>{

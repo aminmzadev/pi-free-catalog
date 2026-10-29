@@ -27,7 +27,7 @@ const calls=[];
 globalThis.fetch=async(url,init)=>{calls.push({url,method:init.method});writeFileSync(${JSON.stringify(trace)},JSON.stringify(calls));
  if(init.method!=='GET')throw Error('No writes allowed by fixture');
  const u=new URL(url);
- if(u.origin+u.pathname==='https://aminmzadev.github.io/pi-free-catalog/catalog/v1/latest.json'){
+ if(u.origin+u.pathname==='https://aminmzadev.github.io/pi-free-catalog/catalog/v2/latest.json'){
   if(init.headers.authorization)throw Error('Provider credential leaked');return new Response(${JSON.stringify(body)});}
  if(url==='https://api.github.com/repos/aminmzadev/pi-free-catalog/actions/runs/1000')return Response.json(${JSON.stringify(fixtureRun)});
  if(url==='https://api.github.com/repos/aminmzadev/pi-free-catalog/actions/runs/1000/attempts/1/jobs?per_page=100')return Response.json({total_count:1,jobs:[${JSON.stringify(fixtureJob)}]});

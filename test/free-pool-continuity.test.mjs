@@ -6,7 +6,7 @@ import {join} from 'node:path';
 import {FreePool} from '../src/free-pool.js';
 import {poolStream,POOL_REQUEST} from '../src/ovh-pool-stream.js';
 import {createAssistantMessageEventStream} from '@earendil-works/pi-ai/compat';
-import {environment,K,Z,A,context} from './free-pool-helper.mjs';
+import {environment,K,K2 as SECOND,A,context} from './free-pool-helper.mjs';
 const K2='["kilo","second"]';
 const output=m=>{const s=createAssistantMessageEventStream(),message={role:'assistant',api:m.api,provider:m.provider,model:m.id,content:[{type:'text',text:'done'}],stopReason:'stop',timestamp:1};s.push({type:'done',reason:'stop',message});s.end(message);return s;};
 const drain=async s=>{for await(const _ of s){}return s.result();};
@@ -21,13 +21,13 @@ for(const scope of [undefined,'model','upstream_provider_shared_pool','unknown']
  const x=environment({models:[K,K2],synthetic:true});await x.enable();await x.pool.observe('reflection/beam-free',reply(429,scope),{},'kilo');assert.equal(x.pool.until(K2),0);
 });
 async function legacy(run,{corrupt=false,fail=false,withOrigin=true,finite=true,modify=()=>{}}={}){
- const x=environment({models:[K,Z,A],cycles:finite?2:0,scheduling:'round-robin'});await x.enable();const dir=await mkdtemp(join(tmpdir(),'continuity-migration-')),file=join(dir,'pool.json');
+ const x=environment({models:[K,SECOND,A],cycles:finite?2:0,scheduling:'round-robin'});await x.enable();const dir=await mkdtemp(join(tmpdir(),'continuity-migration-')),file=join(dir,'pool.json');
  const raw={...x.disk,config:{...x.disk.config,cycles:finite?2:0},rotation:corrupt?{cursor:-1}:{cursor:0,used:0,completed:finite?2:0,paused:finite},barriers:{kilo:{until:61000}},ovhReservations:{'gpt-oss-120b':[500,1000]},ovhCooldowns:{models:{'gpt-oss-120b':120000},providerUntil:0},cooldownEvidence:withOrigin?[{service:'kilo',model:'reflection/beam-free',status:429,at:1000,until:61000,scope:'service',source:'fallback',retryAfterState:'missing',retryAfter:null}]:[]};delete raw.policyVersion;delete raw.modelBarriers;
  modify(raw);await writeFile(file,JSON.stringify(raw));const old=await readFile(file,'utf8');const p=new FreePool({catalog:x.catalog,ovhPool:x.ovh,file,now:()=>x.now,...(fail?{persist:async()=>{throw Error('disk failure');}}:{})});
  try{await p.load();await run({x,p,file,old,raw});}finally{p.close();await p.changes;await rm(dir,{recursive:true,force:true});}
 }
 test('authorized legacy migration removes finite-only pause, retains cursor/counters and all OVH quota, and persists before dispatch',()=>legacy(async({p,file})=>{
- assert.equal(p.config.cycles,0);assert.equal(p.config.enabled,true);assert.equal(p.rotation.completed,2);assert.equal(p.rotation.paused,false);assert.equal(p.until(K),61000);assert.equal(p.until(Z),0);assert.equal(p.until(A),120000);assert.deepEqual(p.ovhReservations['gpt-oss-120b'],[500,1000]);assert.deepEqual([...p.barriers],[]);
+ assert.equal(p.config.cycles,0);assert.equal(p.config.enabled,true);assert.equal(p.rotation.completed,2);assert.equal(p.rotation.paused,false);assert.equal(p.until(K),61000);assert.equal(p.until(SECOND),0);assert.equal(p.until(A),120000);assert.deepEqual(p.ovhReservations['gpt-oss-120b'],[500,1000]);assert.deepEqual([...p.barriers],[]);
  const saved=JSON.parse(await readFile(file));assert.equal(saved.policyVersion,3);assert.equal(saved.config.cycles,0);assert.equal(saved.cooldownEvidence[0].scope,'model');
 }));
 test('unattributable old package-wide Kilo heuristics are retired with a visible policy notice, not copied to all models',()=>legacy(async({p})=>{assert.equal(p.until(K),0);assert.match(p.report(),/no recoverable origin were retired/);assert.equal(p.until(A),120000);},{withOrigin:false}));

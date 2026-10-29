@@ -12,9 +12,9 @@ async function setup(fn){
  try{await extension(pi);await fn({dir,configs,commands,events,ctx,output,setFetch});}
  finally{globalThis.fetch=original;if(prior===undefined)delete process.env.PI_CODING_AGENT_DIR;else process.env.PI_CODING_AGENT_DIR=prior;await rm(dir,{recursive:true,force:true});}
 }
-test('real extension factory fetches at startup and registers all three complete namespaces and classifier',async()=>setup(async({configs,commands})=>{
- assert.deepEqual([...configs.keys()],['free-kilo','free-zen','free-ovh']);assert.equal(configs.get('free-kilo').models.length,17);assert.equal(configs.get('free-zen').models.length,10);assert.equal(configs.get('free-ovh').models.length,10);
- assert.equal(configs.get('free-zen').models.find(m=>m.id==='jev-1.13-free').type,'classifier');assert.ok(configs.get('free-zen').classifiers['typesafe-system-one'].classify);
+test('real extension factory fetches at startup and registers both complete chat namespaces without a classifier dependency',async()=>setup(async({configs,commands})=>{
+ assert.deepEqual([...configs.keys()],['free-kilo','free-ovh']);assert.equal(configs.get('free-kilo').models.length,17);assert.equal(configs.get('free-ovh').models.length,10);
+ assert.equal(configs.get('free-kilo').classifiers,undefined);
  for(const command of ['free-catalog','free-refresh','free-thinking','free-export'])assert.ok(commands.has(command));
 }));
 test('real slash refresh replaces removed models but /free-catalog preserves visible history',async()=>setup(async({configs,commands,ctx,output,setFetch})=>{
@@ -32,9 +32,9 @@ test('interactive native thinking change persists and changes the ACTUAL SDK pay
 }));
 test('export includes every live ID, sources, unknown/conflicts and retirement history',async()=>setup(async({dir,commands,ctx})=>{
  const target=join(dir,'export-test.json');await commands.get('free-export').handler(target,ctx);const data=JSON.parse(await readFile(target,'utf8'));
- assert.equal(Object.keys(data.sources).length,7);assert.equal(Object.values(data.entries).filter(e=>e.listed).length,507);assert.ok(Object.values(data.entries).some(e=>e.classification==='conflict'));assert.ok(data.history.length);
+ assert.equal(Object.keys(data.sources).length,3);assert.equal(Object.values(data.entries).filter(e=>e.listed).length,422);assert.ok(Object.values(data.entries).some(e=>e.classification==='conflict'));assert.ok(data.history.length);
 }));
 test('production SDK imports use Pi public alias-safe entrypoints, not broken direct API subpaths',async()=>{
- const source=await readFile(new URL('../src/sdk.js',import.meta.url),'utf8');assert.ok(source.includes("from '@earendil-works/pi-ai/compat'"));assert.ok(source.includes("from '@earendil-works/pi-ai/providers/all'"));assert.ok(!/from ['"]@earendil-works\/pi-ai\/api\//.test(source));
+ const source=await readFile(new URL('../src/sdk.js',import.meta.url),'utf8');assert.ok(source.includes("from '@earendil-works/pi-ai/compat'"));assert.ok(!source.includes("providers/all"));assert.ok(!/from ['"]@earendil-works\/pi-ai\/api\//.test(source));
  const index=await readFile(new URL('../src/index.js',import.meta.url),'utf8');assert.ok(!/from ['"]@earendil-works\/pi-ai\/api\//.test(index));
 });

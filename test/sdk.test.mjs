@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import { completions as streamSimple, classify } from '../src/sdk.js';
+import { completions as streamSimple } from '../src/sdk.js';
 import { normalizeContext } from '@earendil-works/pi-ai/utils/transcript';
 import { Catalog } from '../src/catalog.js';import { registrations } from '../src/models.js';
 import { scopedFetch,requestPayload } from '../src/transport.js';import { fetcher } from './helpers.mjs';
@@ -33,10 +33,4 @@ test('real Pi SDK reports context overflow without rewriting it as retirement',a
 });
 test('real Pi SDK cancellation becomes aborted, not successful completion',async()=>{
  const controller=new AbortController();controller.abort();const {result}=await run(sse([chunk({content:'x'}),chunk({},'stop')]),{signal:controller.signal});assert.equal(result.stopReason,'aborted');
-});
-test('native classifier SDK uses /systemone and structured choice, not chat completions',async()=>{
- const model={...registrations(catalog.state,'zen').find(m=>m.id==='jev-1.13-free'),provider:'free-zen'};let request;
- const fetch=scopedFetch({catalog,service:'zen',model,session:'test',getFetch:()=>async(url,init)=>{request={url:String(url),headers:init.headers,body:JSON.parse(init.body)};return Response.json({answers:{topic:{type:'choice',choice:'math',probabilities:{math:1,other:0},confidence:1}},usage:{input_tokens:7,output_tokens:3}});}});
- const result=await classify(model,{state:{text:'17 * 19'},questions:{topic:{type:'choice',instructions:'Topic?',criteria:{math:'Math',other:'Other'}}}},{apiKey:'public',maxRetries:0,fetch});
- assert.equal(result.stopReason,'stop');assert.equal(result.answers.topic.choice,'math');assert.match(request.url,/\/systemone$/);assert.equal(request.headers.get('authorization'),'Bearer public');assert.equal(request.body.model,'jev-1.13-free');assert.equal(result.usage.cost.total,0);
 });

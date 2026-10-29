@@ -32,25 +32,13 @@ test('partial positive Kilo prices conflict with an explicit free flag', () => {
   );
   assert.throws(() => c.assertUsable('kilo', 'partial-paid'));
 });
-test('partial positive Zen update cannot reactivate last-known free pricing', () => {
-  const d = structuredClone(fixtures);
-  d.official.opencode.models['beam-free'].cost = { input: 1 };
-  delete d.modelsdev.opencode.models['beam-free'];
-  d.pi = d.pi.filter((m) => m.id !== 'beam-free');
-  const c = new Catalog();
-  c.state = reconcile(sources(d), state());
-  assert.equal(
-    c.state.entries[recordKey('zen', 'beam-free')].classification,
-    'paid',
-  );
-  assert.throws(() => c.assertUsable('zen', 'beam-free'));
-});
+
 test('a cancelled pre-switch must not detach current-model thinking synchronization', () => {
   let level = 'high',
     mode = 'high';
   const s = state();
   const ctx = {
-    model: { provider: 'free-zen', id: 'beam-free' },
+    model: { provider: 'free-kilo', id: 'thinkingmachines/inkling-small:free' },
     ui: { setStatus() {} },
   };
   const sync = thinkingSync({
@@ -117,22 +105,8 @@ test('malformed optional capability fields do not disable unrelated models or hi
     true,
   );
 });
-test('retirement in a second fresh registry is preserved after disappearance', () => {
-  const d = structuredClone(fixtures);
-  d.zen.data = d.zen.data.filter((m) => m.id !== 'beam-free');
-  d.modelsdev.opencode.models['beam-free'].status = 'retired';
-  const s = reconcile(sources(d), state());
-  assert.equal(s.entries[recordKey('zen', 'beam-free')].lifecycle, 'retired');
-});
-test('metadata-only paid/zero conflict is retained accurately and not callable', () => {
-  const d = structuredClone(fixtures),
-    id = 'metadata-conflict';
-  d.official.opencode.models[id] = { id, cost: { input: 0, output: 0 } };
-  d.modelsdev.opencode.models[id] = { id, cost: { input: 1, output: 0 } };
-  const s = reconcile(sources(d));
-  assert.equal(s.entries[recordKey('zen', id)].classification, 'conflict');
-  assert.equal(s.entries[recordKey('zen', id)].listed, false);
-});
+
+
 test('known retirement deadlines are enforced locally without a refresh', () => {
   const d = structuredClone(fixtures),
     id = 'reflection/beam-free',
@@ -148,21 +122,7 @@ test('known retirement deadlines are enforced locally without a refresh', () => 
 test('cached thinking choices never claim live evidence', () => {
   const s = state();
   for (const source of Object.values(s.sources)) source.fresh = false;
-  const p = thinkingProfile(s.entries[recordKey('zen', 'beam-free')], s);
+  const p = thinkingProfile(s.entries[recordKey('kilo', 'thinkingmachines/inkling-small:free')], s);
   assert.ok(Object.keys(p.choices).length);
   assert.doesNotMatch(p.source, /live/i);
-});
-test('accepted wrapped Pi hints have the same effect as array hints', () => {
-  const s = state(),
-    e = s.entries[recordKey('zen', 'beam-free')];
-  delete e.metadata.reasoning_options;
-  delete e.metadata.thinkingLevelMap;
-  s.sources.pi.data = {
-    data: [
-      { id: e.id, api: 'openai-responses', thinkingLevelMap: { low: 'low' } },
-    ],
-  };
-  const m = registrations(s, 'zen').find((m) => m.id === e.id);
-  assert.equal(m.api, 'openai-responses');
-  assert.ok(thinkingProfile(e, s).choices.low);
 });

@@ -41,20 +41,20 @@ test('actual CLI bootstraps, retains LKG, validates exact Pages tar and removes 
  const exec=(command,args,env={},cwd=repo)=>spawnSync(command,args,{cwd,encoding:'utf8',maxBuffer:64*1024*1024,env:{...process.env,...env}});
  const success=result=>assert.equal(result.status,0,result.stderr+'\n'+result.stdout);
  try{
-  const names=['src/snapshot-contract.js','src/catalog.js','src/lifecycle.js','src/ovh.js','ci/lib.mjs','ci/catalog/core.mjs','ci/catalog/deployment-path.mjs','ci/catalog/collect.mjs','ci/catalog/verify-pages.mjs','ci/catalog/verify-live.mjs','ci/catalog/schema-v1.json'];
+  const names=['src/snapshot-contract.js','src/provider-removal.js','src/legacy-snapshot.js','src/catalog.js','src/lifecycle.js','src/ovh.js','ci/lib.mjs','ci/catalog/core.mjs','ci/catalog/deployment-path.mjs','ci/catalog/collect.mjs','ci/catalog/verify-pages.mjs','ci/catalog/verify-live.mjs','ci/catalog/schema-v2.json'];
   for(const name of names){await mkdir(join(repo,name.substring(0,name.lastIndexOf('/'))),{recursive:true});await copyFile(new URL('../../'+name,import.meta.url),join(repo,name));}
   await writeFile(join(repo,'package.json'),'{"type":"module","private":true}');await writeFile(join(repo,'.gitignore'),'artifacts/\n');
   success(exec('git',['init','-q','-b','main']));success(exec('git',['add','.']));success(exec('git',['-c','user.name=Catalog Test','-c','user.email=ci@example.invalid','commit','-qm','Offline fixture test repository']));
   const commit=exec('git',['rev-parse','HEAD']).stdout.trim();
-  const map={kilo:'kilo',zen:'opencode',official:'opencode-capabilities',modelsdev:'models-dev',pi:'pi-opencode-catalog',ovh:'ovh-models',ovhmeta:'ovh-catalog'};
+  const map={kilo:'kilo',ovh:'ovh-models',ovhmeta:'ovh-catalog'};
   const fixtures=Object.fromEntries(await Promise.all(Object.entries(map).map(async([name,file])=>[name,JSON.parse(gunzipSync(await readFile(new URL('../../test/fixtures/'+file+'.json.gz',import.meta.url))))])));
   await writeFile(join(temp,'fixtures.json'),JSON.stringify(fixtures));
   const mock=join(temp,'mock.mjs'),previous=join(temp,'previous.json');
-  await writeFile(mock,`import {readFileSync} from 'node:fs';\nimport {createRequire,syncBuiltinESMExports} from 'node:module';\nif(process.env.TEST_FAST_CLOCK==='true'){let time=0;Object.defineProperty(performance,'now',{value:()=>time});createRequire(import.meta.url)('node:timers/promises').setTimeout=async ms=>{time+=ms;};syncBuiltinESMExports();}\nimport {SOURCES,PREVIOUS_URL} from ${JSON.stringify(new URL('file://'+join(repo,'ci/catalog/core.mjs')).href)};\nconst fixtures=JSON.parse(readFileSync(${JSON.stringify(join(temp,'fixtures.json'))}));\nglobalThis.fetch=async(url,init)=>{if(init.method!=='GET'||init.redirect!=='error')throw Error('Unsafe request');if(new URL(url).origin+new URL(url).pathname===PREVIOUS_URL){if(!new URL(url).searchParams.has('catalog_read'))throw Error('Warm CDN cache must not be used');if(process.env.TEST_PREVIOUS==='404')return new Response(null,{status:404});return new Response(readFileSync(${JSON.stringify(previous)}));}if(new URL(url).pathname.startsWith('/pi-free-catalog/catalog/v1/runs/')){const expected='https://aminmzadev.github.io/pi-free-catalog/catalog/v1/runs/'+process.env.GITHUB_RUN_ID+'/'+process.env.EXPECTED_SNAPSHOT_SHA256+'.json';if(new URL(url).origin+new URL(url).pathname!==expected)throw Error('Wrong immutable identity');return new Response(readFileSync(${JSON.stringify(join(repo,'artifacts/catalog/site'))}+'/'+new URL(url).pathname.slice('/pi-free-catalog/'.length)));}const name=Object.keys(SOURCES).find(n=>SOURCES[n]===url);if(!name)throw Error('Unapproved URL');if(process.env.TEST_FAILURE==='all'||process.env.TEST_FAILURE===name)throw Error('Offline');return Response.json(fixtures[name]);};\n`);
+  await writeFile(mock,`import {readFileSync} from 'node:fs';\nimport {createRequire,syncBuiltinESMExports} from 'node:module';\nif(process.env.TEST_FAST_CLOCK==='true'){let time=0;Object.defineProperty(performance,'now',{value:()=>time});createRequire(import.meta.url)('node:timers/promises').setTimeout=async ms=>{time+=ms;};syncBuiltinESMExports();}\nimport {SOURCES,PREVIOUS_URL} from ${JSON.stringify(new URL('file://'+join(repo,'ci/catalog/core.mjs')).href)};\nconst fixtures=JSON.parse(readFileSync(${JSON.stringify(join(temp,'fixtures.json'))}));\nglobalThis.fetch=async(url,init)=>{if(init.method!=='GET'||init.redirect!=='error')throw Error('Unsafe request');if(new URL(url).pathname==='/pi-free-catalog/catalog/v1/latest.json')return new Response(null,{status:404});if(new URL(url).origin+new URL(url).pathname===PREVIOUS_URL){if(!new URL(url).searchParams.has('catalog_read'))throw Error('Warm CDN cache must not be used');if(process.env.TEST_PREVIOUS==='404')return new Response(null,{status:404});return new Response(readFileSync(${JSON.stringify(previous)}));}if(new URL(url).pathname.startsWith('/pi-free-catalog/catalog/v2/runs/')){const expected='https://aminmzadev.github.io/pi-free-catalog/catalog/v2/runs/'+process.env.GITHUB_RUN_ID+'/'+process.env.EXPECTED_SNAPSHOT_SHA256+'.json';if(new URL(url).origin+new URL(url).pathname!==expected)throw Error('Wrong immutable identity');return new Response(readFileSync(${JSON.stringify(join(repo,'artifacts/catalog/site'))}+'/'+new URL(url).pathname.slice('/pi-free-catalog/'.length)));}const name=Object.keys(SOURCES).find(n=>SOURCES[n]===url);if(!name)throw Error('Unapproved URL');if(process.env.TEST_FAILURE==='all'||process.env.TEST_FAILURE===name)throw Error('Offline');return Response.json(fixtures[name]);};\n`);
   const env={GITHUB_ACTIONS:'true',GITHUB_REPOSITORY:'aminmzadev/pi-free-catalog',GITHUB_REF:'refs/heads/main',GITHUB_SHA:commit,GITHUB_RUN_ID:'4242',GITHUB_EVENT_NAME:'workflow_dispatch',CATALOG_BOOTSTRAP:'true',CATALOG_APPROVE_LARGE_CHANGES:'false',TEST_PREVIOUS:'404',TEST_FAILURE:'',GITHUB_OUTPUT:join(temp,'outputs'),GITHUB_STEP_SUMMARY:join(temp,'summary'),NODE_OPTIONS:''};
   const cli=changes=>exec(process.execPath,['--import',mock,'ci/catalog/collect.mjs'],{...env,...changes});
-  success(cli({}));const snapshotFile=join(repo,'artifacts/catalog/site/catalog/v1/latest.json');const firstText=await readFile(snapshotFile,'utf8'),first=JSON.parse(firstText);assert.equal(first.quality.freshSources,7);await writeFile(previous,firstText);
-  const uniqueFile=join(repo,'artifacts/catalog/site/catalog/v1/runs/4242/'+sha256(firstText)+'.json');
+  success(cli({}));const snapshotFile=join(repo,'artifacts/catalog/site/catalog/v2/latest.json');const firstText=await readFile(snapshotFile,'utf8'),first=JSON.parse(firstText);assert.equal(first.quality.freshSources,3);await writeFile(previous,firstText);
+  const uniqueFile=join(repo,'artifacts/catalog/site/catalog/v2/runs/4242/'+sha256(firstText)+'.json');
   assert.equal(await readFile(uniqueFile,'utf8'),firstText);
   await mkdir(join(repo,'artifacts/catalog/download'),{recursive:true});
   success(exec('tar',['-cf',join(repo,'artifacts/catalog/download/artifact.tar'),'-C',join(repo,'artifacts/catalog/site'),'.']));
@@ -68,10 +68,10 @@ test('actual CLI bootstraps, retains LKG, validates exact Pages tar and removes 
   success(exec('tar',['-cf',join(repo,'artifacts/catalog/download/artifact.tar'),'-C',join(repo,'artifacts/catalog/site'),'.']));
   assert.notEqual(verify(sha256(firstText)).status,0);
   await writeFile(uniqueFile,firstText);
-  await writeFile(join(repo,'artifacts/catalog/site/catalog/v1/runs/4242/unexpected.json'),firstText);
+  await writeFile(join(repo,'artifacts/catalog/site/catalog/v2/runs/4242/unexpected.json'),firstText);
   success(exec('tar',['-cf',join(repo,'artifacts/catalog/download/artifact.tar'),'-C',join(repo,'artifacts/catalog/site'),'.']));
   assert.notEqual(verify(sha256(firstText)).status,0);
-  await rm(join(repo,'artifacts/catalog/site/catalog/v1/runs/4242/unexpected.json'));
+  await rm(join(repo,'artifacts/catalog/site/catalog/v2/runs/4242/unexpected.json'));
   success(exec('tar',['-cf',join(repo,'artifacts/catalog/download/artifact.tar'),'-C',join(repo,'artifacts/catalog/site'),'.']));
   success(verify(sha256(firstText)));
 
@@ -105,7 +105,7 @@ test('actual CLI bootstraps, retains LKG, validates exact Pages tar and removes 
   assert.notEqual(cli({GITHUB_REF:'refs/heads/other'}).status,0,'Non-main branch must be forbidden');
   assert.notEqual(cli({GITHUB_REPOSITORY:'fork/other'}).status,0,'Fork must be forbidden');
   success(cli({}));await writeFile(previous,'{');assert.notEqual(cli({CATALOG_BOOTSTRAP:'false',TEST_PREVIOUS:'corrupt'}).status,0);await assert.rejects(access(snapshotFile));
-  for(const [name,type]of[['../escape','file'],['escape','symlink'],['catalog/v1/latest.json','duplicate']]){
+  for(const [name,type]of[['../escape','file'],['escape','symlink'],['catalog/v2/latest.json','duplicate']]){
    const code=`import tarfile,io,sys\nwith tarfile.open(sys.argv[1],'w') as t:\n m=tarfile.TarInfo(sys.argv[2])\n if sys.argv[3]=='symlink':\n  m.type=tarfile.SYMTYPE;m.linkname='/etc/passwd';t.addfile(m)\n else:\n  b=b'{}';m.size=len(b);t.addfile(m,io.BytesIO(b))\n  if sys.argv[3]=='duplicate':t.addfile(m,io.BytesIO(b))\n`;
    success(exec('python3',['-c',code,join(repo,'artifacts/catalog/download/artifact.tar'),name,type]));assert.notEqual(verify(sha256(firstText)).status,0,'Unsafe tar must fail');
   }

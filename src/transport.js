@@ -1,49 +1,25 @@
-import { randomBytes, randomUUID } from 'node:crypto';
 import { applyThinking, selectThinking } from './models.js';
 
-export const PACKAGE_VERSION = '0.1.7';
+export const PACKAGE_VERSION = '0.1.8';
 import { OVH_BASE } from './ovh.js';
 
-/** Native OpenCode-compatible identifier. One stable identity per Pi session; never quota rotation. */
-export function sessionId(now = Date.now()) {
-  const prefix = (
-    (1n << 48n) -
-    1n -
-    ((BigInt(now) * 4096n) & ((1n << 48n) - 1n))
-  )
-    .toString(16)
-    .padStart(12, '0');
-  return `ses_${prefix}${randomBytes(14).toString('hex').slice(0, 14)}`;
-}
-export function anonymousHeaders(service, session) {
+export function anonymousHeaders(service) {
   if (service === 'ovh') return { 'User-Agent': `pi-free-catalog/${PACKAGE_VERSION}` };
-  if (service !== 'kilo' && service !== 'zen') throw new Error('Unknown anonymous provider');
-  if (service === 'kilo')
-    return {
-      'x-kilo-free': 'true',
-      'User-Agent': `pi-free-catalog/${PACKAGE_VERSION}`,
-    };
-  return {
-    Authorization: 'Bearer public',
-    'User-Agent': `opencode/1.19.3 pi-free-catalog/${PACKAGE_VERSION}`,
-    'x-opencode-client': 'cli',
-    'x-opencode-project': 'global',
-    'x-opencode-session': session,
-    'x-opencode-request': `req_${randomUUID().replaceAll('-', '')}`,
-  };
+  if (service !== 'kilo') throw new Error('Unknown anonymous provider');
+  return { 'x-kilo-free': 'true', 'User-Agent': `pi-free-catalog/${PACKAGE_VERSION}` };
 }
 /** Scoped fetch only; no monkey-patching global fetch/http, no credentials read. */
 export function scopedFetch({
   catalog,
   service,
   model,
-  session,
   getFetch = () => globalThis.fetch,
   onResponse,
   onWait,
   pacing,
 }) {
   return async (input, init = {}) => {
+    if (!['kilo', 'ovh'].includes(service)) throw new Error('Unknown anonymous provider');
     const url = new URL(
       typeof input === 'string' || input instanceof URL
         ? String(input)
@@ -53,10 +29,8 @@ export function scopedFetch({
       init.method || (input instanceof Request ? input.method : 'GET')
     ).toUpperCase();
     const prefix =
-      service === 'ovh' ? OVH_BASE + '/' : service === 'kilo'
-        ? 'https://api.kilo.ai/api/gateway/'
-        : 'https://opencode.ai/inference/v1/';
-    const allowed = service === 'ovh' ? ['chat/completions'] : ['chat/completions', 'responses', 'messages', 'systemone'];
+      service === 'ovh' ? OVH_BASE + '/' : 'https://api.kilo.ai/api/gateway/';
+    const allowed = service === 'ovh' ? ['chat/completions'] : ['chat/completions', 'responses', 'messages'];
     if (
       url.username ||
       url.password ||
@@ -82,7 +56,7 @@ export function scopedFetch({
     for (const name of ['authorization', 'x-api-key', 'api-key', 'cookie', 'proxy-authorization', 'payment-signature', 'x-payment'])
       headers.delete(name);
     for (const [name, value] of Object.entries(
-      anonymousHeaders(service, session),
+      anonymousHeaders(service),
     ))
       headers.set(name, value);
     headers.set('content-type', 'application/json');

@@ -1,7 +1,8 @@
+import { migrateThinkingSelections } from "./provider-removal.js";
 import { join } from "node:path";
 import { readFile } from "node:fs/promises";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { completions, responses, anthropic, classify } from "./sdk.js";
+import { completions, responses, anthropic } from "./sdk.js";
 import {
   PROVIDERS,
   recordKey,
@@ -16,7 +17,7 @@ import { refreshReport, clean } from "./catalog-report.js";
 import { footerController } from "./footer.js";
 import { FooterSettings, chatCountsStatus, editFooterSettings } from "./footer-settings.js";
 import { OVH_BASE } from "./ovh.js";
-import { scopedFetch, requestPayload, sessionId } from "./transport.js";
+import { scopedFetch, requestPayload } from "./transport.js";
 import { OvhPool } from "./ovh-pool.js";
 import { FreePool, poolKey, parsePoolKey } from "./free-pool.js";
 import { explicitTools } from "./free-pool-compat.js";
@@ -39,7 +40,7 @@ export default async function freeCatalog(pi) {
   let selections = {};
   try {
     const d = JSON.parse(await readFile(selectionFile, "utf8"));
-    if (d && typeof d === "object" && !Array.isArray(d)) selections = d;
+    if (d && typeof d === "object" && !Array.isArray(d)) selections = migrateThinkingSelections(d);
   } catch {}
   const uiFile = join(directory, "ui.json");
   const uiSettings = new FooterSettings({ file: uiFile });
@@ -52,7 +53,6 @@ export default async function freeCatalog(pi) {
       .then(() => atomicJSON(selectionFile, snapshot));
     return saveQueue;
   };
-  const session = sessionId();
   let activeFreeModel = null;
   let activeContext = null;
   const getSelection = (service, id) =>
@@ -104,7 +104,6 @@ export default async function freeCatalog(pi) {
       catalog,
       service,
       model,
-      session,
       onResponse: (r) => {
         options[POOL_REQUEST]?.headers(r);
         noteResponse(service, model.id, r);
@@ -195,9 +194,7 @@ export default async function freeCatalog(pi) {
     return {
       api: "openai-completions",
       baseUrl:
-        service === "ovh" ? OVH_BASE : service === "kilo"
-          ? "https://api.kilo.ai/api/gateway"
-          : "https://opencode.ai/inference/v1",
+        service === "ovh" ? OVH_BASE : "https://api.kilo.ai/api/gateway",
       apiKey: "public",
       authHeader: false,
       models: registrations(catalog.state, service),
@@ -214,24 +211,7 @@ export default async function freeCatalog(pi) {
         }
         return infer(service, model, context, options);
       },
-      classifiers: {
-        "typesafe-system-one": {
-          classify: async (model, context, options = {}) => {
-            catalog.assertUsable(service, model.id);
-            return classify(model, context, {
-              ...options,
-              apiKey: "public",
-              fetch: scopedFetch({
-                catalog,
-                service,
-                model,
-                session,
-                onResponse: (r) => noteResponse(service, model.id, r),
-              }),
-            });
-          },
-        },
-      },
+
     };
   }
   const install = () => {
@@ -245,7 +225,6 @@ export default async function freeCatalog(pi) {
         auth:{apiKey:{name:'Public anonymous access',check:async()=>({type:'api_key',source:'public anonymous'}),resolve:async()=>({auth:{apiKey:'public'},source:'public anonymous'})}},
         getModels:()=>models().filter(m=>m.type==='chat'),getAllModels:models,
         stream:cfg.streamSimple,streamSimple:cfg.streamSimple,
-        classify:(model,context,options)=>cfg.classifiers['typesafe-system-one'].classify(model,context,options),
       });
     }
   };
@@ -437,7 +416,7 @@ export default async function freeCatalog(pi) {
       const model = freeModelKey(ctx.model),
         service = model?.service;
       if (!service || (ctx.model.type && ctx.model.type !== "chat")) {
-        output("Select a free-kilo, free-zen or free-ovh chat model first.", ctx);
+        output("Select a free-kilo or free-ovh chat model first.", ctx);
         return;
       }
       activeFreeModel = model;

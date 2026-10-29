@@ -71,10 +71,10 @@ test("ID search exposes full model ID, and Ctrl+U clears search back to summary"
   const x = setup(),
     v = x.viewer;
   v.render(80);
-  v.handleInput("fledge-alpha-free");
+  v.handleInput("reflection/beam-free");
   let screen = text(v.render(80));
   assert.match(screen, /1 of \d+ report records match/);
-  assert.match(screen, /fledge-alpha-free/);
+  assert.match(screen, /reflection\/beam-free/);
   assert.match(screen, /Search active/);
   v.handleInput("\x15");
   screen = text(v.render(80));
@@ -85,7 +85,7 @@ test("search is case-insensitive and an empty result is clearly identified", () 
   const x = setup(),
     v = x.viewer;
   v.render(80);
-  v.handleInput("FLEDGE");
+  v.handleInput("REFLECTION/BEAM-FREE");
   assert.match(text(v.render(80)), /1 of \d+/);
   v.handleInput("\x15");
   v.handleInput("no-such-model-id");
@@ -227,8 +227,8 @@ test("actual Pi AgentSession dispatches /free-catalog through public custom UI w
           );
           component.focused = true;
           assert.match(text(component.render(50)), /FREE MODEL CATALOG/);
-          component.handleInput("fledge-alpha-free");
-          assert.match(text(component.render(80)), /fledge-alpha-free/);
+          component.handleInput("reflection/beam-free");
+          assert.match(text(component.render(80)), /reflection\/beam-free/);
           component.handleInput("\x1b");
           assert.equal(closed, true);
         },

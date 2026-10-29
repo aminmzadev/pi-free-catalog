@@ -1,4 +1,5 @@
 import { readFile, stat } from 'node:fs/promises';
+import { migratePoolProvider } from './provider-removal.js';
 import { atomicJSON, PROVIDERS, recordKey } from './catalog.js';
 import { registrations, selectThinking } from './models.js';
 import { clean } from './catalog-report.js';
@@ -65,7 +66,9 @@ export class FreePool {
     if(!this.file)return;
     try {
       if((await stat(this.file)).size>1048576)throw Error('Oversized free pool file');
-      this.installed=true;const raw=JSON.parse(await readFile(this.file,'utf8'));
+      this.installed=true;const migration=migratePoolProvider(JSON.parse(await readFile(this.file,'utf8')));const raw=migration.value;
+      if(raw.removalReviewRequired!==undefined&&typeof raw.removalReviewRequired!=='boolean')throw Error('Invalid removal review state');
+      this.removalReviewRequired=!!raw.removalReviewRequired;
       if(raw.schemaVersion!==2)throw Error('Unsupported free pool schema');
       this.config=validateFreePool(raw.config);
       const services=[...new Set(this.config.models.map(k=>parsePoolKey(k).service))].sort();
@@ -76,9 +79,9 @@ export class FreePool {
       try {
         if(raw.policyVersion!==undefined&&raw.policyVersion!==3)throw Error('Unsupported pool policy version');
         if(raw.policyVersion===3&&(!raw.modelBarriers||typeof raw.modelBarriers!=='object'||Array.isArray(raw.modelBarriers)))throw Error('Missing model cooldown state');
-        for(const [key,b] of Object.entries(raw.modelBarriers??{})){if(!['kilo','zen'].includes(parsePoolKey(key).service)||!Number.isSafeInteger(b?.until)||b.until<0)throw Error('Invalid saved model cooldown');this.modelBarriers.set(key,{until:b.until});}
+        for(const [key,b] of Object.entries(raw.modelBarriers??{})){if(!['kilo'].includes(parsePoolKey(key).service)||!Number.isSafeInteger(b?.until)||b.until<0)throw Error('Invalid saved model cooldown');this.modelBarriers.set(key,{until:b.until});}
         if(!raw.barriers||typeof raw.barriers!=='object'||Array.isArray(raw.barriers)||!raw.ovhReservations||typeof raw.ovhReservations!=='object'||Array.isArray(raw.ovhReservations))throw Error('Missing durable cooldown state');
-        for(const [service,b] of Object.entries(raw.barriers)){if(!['kilo','zen'].includes(service)||!Number.isSafeInteger(b?.until)||b.until<0)throw Error('Invalid saved cooldown');this.barriers.set(service,{until:b.until});}
+        for(const [service,b] of Object.entries(raw.barriers)){if(!['kilo'].includes(service)||!Number.isSafeInteger(b?.until)||b.until<0)throw Error('Invalid saved cooldown');this.barriers.set(service,{until:b.until});}
         for(const [id,times] of Object.entries(raw.ovhReservations)){if(!Array.isArray(times)||times.length>2||times.some(t=>!Number.isSafeInteger(t)||t<0))throw Error('Invalid OVH reservations');}
         if(!raw.ovhCooldowns||!Number.isSafeInteger(raw.ovhCooldowns.providerUntil)||raw.ovhCooldowns.providerUntil<0||!raw.ovhCooldowns.models||typeof raw.ovhCooldowns.models!=='object'||Array.isArray(raw.ovhCooldowns.models)||Object.values(raw.ovhCooldowns.models).some(n=>!Number.isSafeInteger(n)||n<0))throw Error('Invalid saved OVH cooldown');
         this.ovhCooldowns=raw.ovhCooldowns;
@@ -86,7 +89,7 @@ export class FreePool {
         this.rotation=validateRotation(raw.rotation,this.config);}catch(e){validRuntime=false;this.rotation=Object.freeze({...rotationDefaults(),paused:true});this.warning=e.message;}
       if(raw.policyVersion===undefined){
         // This build carries the user's explicit choice: continuous scheduling and
-        // no blanket Kilo/Zen gates inferred by the old package policy.
+        // no blanket Kilo gates inferred by the old package policy.
         const oldConfig=this.config,oldRotation=this.rotation;
         for(const e of this.cooldownEvidence){
           if(e.service==='ovh')continue;
@@ -99,17 +102,19 @@ export class FreePool {
         const exhausted=oldConfig.cycles>0&&oldRotation.completed>=oldConfig.cycles;
         this.config=validateFreePool({...oldConfig,cycles:0});
         this.rotation=Object.freeze({...oldRotation,paused:exhausted?false:oldRotation.paused});
-        this.policyNotice='Continuity update: the user requested continuous scheduling. Old finite-cycle exhaustion was removed; OVH quota remains unchanged. Legacy blanket Kilo/Zen policy gates were reassigned to known originating models; gates with no recoverable origin were retired, not guessed onto every model.';
+        this.policyNotice='Continuity update: the user requested continuous scheduling. Old finite-cycle exhaustion was removed; OVH quota remains unchanged. Legacy blanket Kilo policy gates were reassigned to known originating models; gates with no recoverable origin were retired, not guessed onto every model.';
         try{await this.store(this.config,this.rotation);}catch(e){this.rotation=Object.freeze({...this.rotation,paused:true});this.warning='Could not persist the continuity policy update; managed requests are paused. Repair storage and reload. '+clean(e.message);}
         }
       }
+      if(this.removalReviewRequired){this.config=validateFreePool({...this.config,enabled:false});this.rotation=Object.freeze({...this.rotation,paused:true});this.warning='A removed provider was retired from this pool. Remaining settings, cooldowns and quotas were preserved. Review and explicitly restart before enabling.';}
+      if(migration.changed&&validRuntime)await this.store(this.config,this.rotation);
     }catch(e){
       if(e.code==='ENOENT')return;
       this.installed=true;this.config=validateFreePool(freePoolDefaults());this.rotation=Object.freeze({...rotationDefaults(),paused:true});this.warning='Free pool disabled: invalid saved settings. Review and Apply explicitly. '+clean(e.message);
     }
   }
   async store(config,rotation){
-    const value={schemaVersion:2,policyVersion:3,modelBarriers:Object.fromEntries(this.modelBarriers),config,rotation,cooldownEvidence:this.cooldownEvidence,barriers:Object.fromEntries(this.barriers),ovhCooldowns:this.ovhCooldowns,ovhReservations:this.ovhReservations,approvedProviders:[...new Set(config.models.map(k=>parsePoolKey(k).service))].sort()};
+    const value={schemaVersion:2,policyVersion:3,...(this.removalReviewRequired?{removalReviewRequired:true}:{}),modelBarriers:Object.fromEntries(this.modelBarriers),config,rotation,cooldownEvidence:this.cooldownEvidence,barriers:Object.fromEntries(this.barriers),ovhCooldowns:this.ovhCooldowns,ovhReservations:this.ovhReservations,approvedProviders:[...new Set(config.models.map(k=>parsePoolKey(k).service))].sort()};
     if(Buffer.byteLength(JSON.stringify(value))>1048576)throw Error('Free pool settings exceed the safe file size limit');
     if(this.file)await this.persist(this.file,value);
   }
@@ -119,6 +124,7 @@ export class FreePool {
     return this.enqueue(async()=>{
       if(this.shutdown.signal.aborted||this.busy)throw Error('Pool is busy or closed');
       if(this.config!==expected)throw Error('Pool changed while editing; reopen settings');
+      if(this.removalReviewRequired&&(!restart||!consent))throw Error('Review and explicitly restart the migrated pool before changing it');
       const c=validateFreePool(requested),eligible=new Map(this.eligible().map(m=>[poolKey(m),m]));
       if(c.models.some(k=>!eligible.has(k)&&!expected.models.includes(k)))throw Error('New selection is no longer eligible');
       if(c.enabled&&!expected.enabled&&c.models.filter(k=>eligible.has(k)).length<2)throw Error('Two selected models must be eligible to enable the pool');
@@ -139,7 +145,8 @@ export class FreePool {
         }
         this.ovhCooldowns={models:ready,providerUntil:Math.max(priorCooldowns.providerUntil,this.ovhPool.providerUntil)};
       }
-      try{await this.store(c,r);}catch(e){this.ovhReservations=priorReservations;this.ovhCooldowns=priorCooldowns;throw e;}this.config=c;this.rotation=r;this.installed=true;this.warning=null;return c;
+      const priorReview=this.removalReviewRequired;this.removalReviewRequired=false;
+      try{await this.store(c,r);}catch(e){this.removalReviewRequired=priorReview;this.ovhReservations=priorReservations;this.ovhCooldowns=priorCooldowns;throw e;}this.config=c;this.rotation=r;this.installed=true;this.warning=null;return c;
     });
   }
   close(){this.shutdown.abort(new DOMException('Free pool shut down','AbortError'));}
@@ -335,7 +342,7 @@ export class FreePool {
       `Readiness wait: ${this.config.maxWaitMs/1000}s; response-start: ${this.config.responseStartTimeoutMs/1000}s (0 = disabled).`,
       'Current local cooldowns (not a request-compatibility test):',
       ...this.config.models.map(k=>`${clean(k)} — thinking ${clean(this.mode(k))}; ${this.cooldownStatus(k,at)}`),
-      'Kilo/Zen policy: model-local cooldown by default. A service-wide gate requires an explicit server X-Ratelimit-Scope declaration. A 429 without valid Retry-After uses a 61-second model-local package backoff, not a verified provider limit. Pre-activity 429 may advance once per untried identity; no failover after meaningful activity.',
+      'Kilo policy: model-local cooldown by default. A service-wide gate requires an explicit server X-Ratelimit-Scope declaration. A 429 without valid Retry-After uses a 61-second model-local package backoff, not a verified provider limit. Pre-activity 429 may advance once per untried identity; no failover after meaningful activity.',
       ...this.unsupported(),
       ...(this.lastCheck?[`Last selection check — ${iso(this.lastCheckAt)} (HISTORICAL; not current readiness):`,this.lastCheck]:[]),
       `Cooldown response evidence (HISTORICAL; newest ${MAX_COOLDOWN_EVIDENCE} retained; expired records do not mean an active block):`,

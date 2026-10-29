@@ -28,10 +28,10 @@ async function environment(run){
  finally{gate?.resolve();for(const s of [...sessions])await close(s);globalThis.fetch=original;if(prior===undefined)delete process.env.PI_CODING_AGENT_DIR;else process.env.PI_CODING_AGENT_DIR=prior;await rm(dir,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
 }
 async function promptly(promise){let timer;try{return await Promise.race([promise,new Promise((_,reject)=>timer=setTimeout(()=>reject(Error('Cached startup waited for network')),2000))]);}finally{clearTimeout(timer);}}
-async function infer(s){await s.setModel(s.modelRuntime.getModel('free-zen','beam-free'));s.setThinkingLevel('off');await s.prompt('17 * 19');assert.equal(s.messages.filter(m=>m.role==='assistant').at(-1).stopReason,'stop');}
+async function infer(s){await s.setModel(s.modelRuntime.getModel('free-kilo','thinkingmachines/inkling-small:free'));s.setThinkingLevel('off');await s.prompt('17 * 19');assert.equal(s.messages.filter(m=>m.role==='assistant').at(-1).stopReason,'stop');}
 
-test('real Pi healthy Pages startup registers all providers and classifier using exactly one metadata GET',async()=>environment(async x=>{
- const s=await x.start();assert.equal(x.requests.length,1);const models=s.modelRuntime.getAllModels();for(const [provider,count]of[['free-kilo',17],['free-zen',10],['free-ovh',10]])assert.equal(models.filter(m=>m.provider===provider).length,count);assert.equal(models.find(m=>m.provider==='free-zen'&&m.id==='jev-1.13-free').type,'classifier');
+test('real Pi healthy Pages startup registers both providers and no retired provider using exactly one metadata GET',async()=>environment(async x=>{
+ const s=await x.start();assert.equal(x.requests.length,1);const models=s.modelRuntime.getAllModels();for(const [provider,count]of[['free-kilo',17],['free-ovh',10]])assert.equal(models.filter(m=>m.provider===provider).length,count);assert.ok(!models.some(m=>m.provider==='free-zen'));
  await infer(s);await infer(s);assert.equal(x.requests.length,1);assert.equal(x.wires.length,2);await s.prompt('/free-refresh');assert.equal(x.requests.length,2);await infer(s);assert.equal(x.requests.length,2);assert.deepEqual(x.errors,[]);
 }));
 test('real Pi cached startup and inference work while its single startup Pages request is still pending',async()=>environment(async x=>{

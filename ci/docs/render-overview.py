@@ -60,11 +60,10 @@ def render():
     parts.append('<path d="M1145 164V340" stroke="#cdd4c9"/>')
     text(1180, 179, 'PROVIDERS', 18, 600, MUTED)
     text(1180, 224, 'Kilo', 32, 600)
-    text(1180, 272, 'OpenCode Zen', 32, 600)
-    text(1180, 320, 'OVHcloud', 32, 600)
+    text(1180, 272, 'OVHcloud', 32, 600)
 
     cards = [
-        (80, '01', 'Public model feeds', ['Pricing & access evidence', 'Tool & thinking support', 'Lifecycle & retirement'], 'Kilo · Zen · OVHcloud'),
+        (80, '01', 'Public model feeds', ['Pricing & access evidence', 'Tool & thinking support', 'Lifecycle & retirement'], 'Kilo · OVHcloud'),
         (574, '02', 'Validated catalog', ['Schema & integrity checks', 'Published on GitHub Pages', 'Per-source freshness'], 'Metadata only'),
         (1068, '03', 'Ready in Pi', ['Saved model catalog', 'Refresh at startup and manually', 'Free Pools you can enable'], 'Choose models and settings'),
     ]

@@ -34,34 +34,33 @@ async function environment(run){
  }
 }
 
-test('actual Pi three-provider coexistence: all inventories/classifier registered, native thinking two-way controls exact per-provider HTTP',async()=>environment(async x=>{
- const s=x.session;assert.equal(x.catalogs,8);
+test('actual Pi two-provider coexistence: full Kilo/OVH inventories registered, native thinking two-way controls exact per-provider HTTP',async()=>environment(async x=>{
+ const s=x.session;assert.equal(x.catalogs,4);
  assert.equal(s.modelRuntime.getAllModels().filter(m=>m.provider==='free-kilo').length,17);
- assert.equal(s.modelRuntime.getAllModels().filter(m=>m.provider==='free-zen').length,10);
  assert.equal(s.modelRuntime.getAllModels().filter(m=>m.provider==='free-ovh').length,10);
- assert.equal(s.modelRuntime.getAllModels().find(m=>m.provider==='free-zen'&&m.id==='jev-1.13-free').type,'classifier');
- for(const [provider,id] of [['free-kilo','reflection/beam-free'],['free-zen','beam-free'],['free-ovh','gpt-oss-120b']]){
+ assert.ok(!s.modelRuntime.getAllModels().some(m=>m.provider==='free-zen'));
+ for(const [provider,id] of [['free-kilo','reflection/beam-free'],['free-kilo','thinkingmachines/inkling-small:free'],['free-ovh','gpt-oss-120b']]){
   await s.setModel(s.modelRuntime.getModel(provider,id));await s.prompt('/free-thinking high');assert.equal(s.thinkingLevel,'high');s.setThinkingLevel('low');await s.prompt('17 * 19');
   const w=x.wires.at(-1);assert.equal(w.body.model,id);assert.equal(provider==='free-kilo'?w.body.reasoning.effort:w.body.reasoning_effort,'low');
-  assert.equal(s.messages.filter(m=>m.role==='assistant').at(-1).stopReason,'stop');assert.equal(x.catalogs,8);
+  assert.equal(s.messages.filter(m=>m.role==='assistant').at(-1).stopReason,'stop');assert.equal(x.catalogs,4);
   assert.ok(w.body.tools.some(t=>t.function.name==='read'));if(provider==='free-ovh'){assert.ok(!w.headers.authorization);assert.ok(!w.body.tools.some(t=>t.function.strict===true));}
  }
- assert.deepEqual(x.errors,[]);assert.match(x.statuses.filter(s=>s.key==='free-catalog').at(-1).value,/^Free chat: Kilo \d+ · Zen \d+ · OVH \d+$/);
+ assert.deepEqual(x.errors,[]);assert.match(x.statuses.filter(s=>s.key==='free-catalog').at(-1).value,/^Free chat: Kilo \d+ · OVH \d+$/);
 }));
 
 test('actual Pi OVH wait is visible and abortable; cancelling a tool-continuation-sized next prompt does not send HTTP or fetch catalogs',async()=>environment(async x=>{
  const s=x.session;await s.setModel(s.modelRuntime.getModel('free-ovh','gpt-oss-120b'));s.setThinkingLevel('low');await s.prompt('17 * 19');assert.equal(x.wires.length,1);
  const timeout=setTimeout(()=>{void s.abort();},40);try{await s.prompt('17 * 19');}finally{clearTimeout(timeout);}
- assert.equal(x.wires.length,1);assert.equal(x.catalogs,8);
+ assert.equal(x.wires.length,1);assert.equal(x.catalogs,4);
  assert.ok(x.statuses.some(s=>s.key==='free-ovh-activity'&&/^OVH wait /.test(s.value)));
  assert.equal(x.statuses.filter(s=>s.key==='free-ovh-activity').at(-1).value,undefined);
  assert.equal(s.messages.filter(m=>m.role==='assistant').at(-1).stopReason,'aborted');assert.deepEqual(x.errors,[]);
 }));
 
 test('actual Pi failed manual refresh leaves cached OVH inference usable without catalog fetches during prompt',async()=>environment(async x=>{
- const s=x.session;x.offline();await s.prompt('/free-refresh');assert.equal(x.catalogs,16);
+ const s=x.session;x.offline();await s.prompt('/free-refresh');assert.equal(x.catalogs,8);
  await s.setModel(s.modelRuntime.getModel('free-ovh','gpt-oss-120b'));s.setThinkingLevel('low');await s.prompt('17 * 19');
- assert.equal(x.catalogs,16);assert.equal(x.wires.length,1);assert.equal(s.messages.filter(m=>m.role==='assistant').at(-1).stopReason,'stop');assert.deepEqual(x.errors,[]);
+ assert.equal(x.catalogs,8);assert.equal(x.wires.length,1);assert.equal(s.messages.filter(m=>m.role==='assistant').at(-1).stopReason,'stop');assert.deepEqual(x.errors,[]);
 }));
 
 test('production OVH provider overrides SDK retry settings to zero and returns original 429, not an automatic retry/fallback',async()=>{

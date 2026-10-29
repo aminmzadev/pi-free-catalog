@@ -8,8 +8,8 @@ const unique = deploymentPath(process.env.GITHUB_RUN_ID, expected);
 // Inspect the archive without extracting any files. Both JSON copies must be byte-identical.
 const json = run('python3', ['-c', `import tarfile,sys,pathlib
 unique=sys.argv[2];limit=int(sys.argv[3])
-allowed={'index.html','catalog/v1/latest.json','catalog/v1/schema.json',unique}
-dirs={'.','catalog','catalog/v1','catalog/v1/runs',str(pathlib.PurePosixPath(unique).parent)}
+allowed={'index.html','catalog/v2/latest.json','catalog/v2/schema.json',unique}
+dirs={'.','catalog','catalog/v2','catalog/v2/runs',str(pathlib.PurePosixPath(unique).parent)}
 with tarfile.open(sys.argv[1]) as t:
  seen={};size=0
  for m in t.getmembers():
@@ -20,11 +20,11 @@ with tarfile.open(sys.argv[1]) as t:
    assert str(p) in dirs,m.name
    continue
   n=str(p);assert n in allowed and n not in seen,n
-  cap=limit if n.endswith('.json') and n!='catalog/v1/schema.json' else 1048576
+  cap=limit if n.endswith('.json') and n!='catalog/v2/schema.json' else 1048576
   assert 0<=m.size<=cap,n
   seen[n]=m;size+=m.size;assert size<=2*limit+2097152
  assert set(seen)==allowed
- a=t.extractfile(seen['catalog/v1/latest.json']).read(limit+1)
+ a=t.extractfile(seen['catalog/v2/latest.json']).read(limit+1)
  b=t.extractfile(seen[unique]).read(limit+1)
  assert len(a)<=limit and a==b,'Latest and run-specific snapshots differ'
  sys.stdout.buffer.write(a)

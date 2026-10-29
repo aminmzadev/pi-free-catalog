@@ -49,7 +49,7 @@ async function environment(run,{timeout=80,enabled=true,ui}={}) {
   await rm(dir,{recursive:true,force:true,maxRetries:5,retryDelay:50});
  }
 }
-function assertClean(x,shutdown=false) {if(shutdown)assert.equal(x.statuses.get('free-catalog'),undefined);else assert.match(x.statuses.get('free-catalog'), /^Free chat: Kilo \d+ · Zen \d+ · OVH \d+$/);assert.deepEqual([...x.statuses].filter(([key])=>key!=='free-catalog'),[['foreign-extension','keep me']]);assert.deepEqual(x.errors,[]);}
+function assertClean(x,shutdown=false) {if(shutdown)assert.equal(x.statuses.get('free-catalog'),undefined);else assert.match(x.statuses.get('free-catalog'), /^Free chat: Kilo \d+ · OVH \d+$/);assert.deepEqual([...x.statuses].filter(([key])=>key!=='free-catalog'),[['foreign-extension','keep me']]);assert.deepEqual(x.errors,[]);}
 
 test('real Pi: silent HTTP start advances once, buffers source start, persists diagnostics outside LLM context and resumes them',async()=>environment(async x=>{
  let signal;
@@ -66,7 +66,7 @@ test('real Pi: silent HTTP start advances once, buffers source start, persists d
  assert.doesNotMatch(JSON.stringify(x.wires[2].messages),/free-ovh-pool-activity|timed-out|OVH pool:/);
  assert.equal(x.events.filter(e=>e.type==='tool_execution_start').length,0);assertClean(x);
  const path=x.session.sessionManager.getSessionFile();assert.ok(path);const resumed=SessionManager.open(path);assert.equal(recentActivity({sessionManager:resumed}).length,2);
- assert.equal(x.metadata,8);
+ assert.equal(x.metadata,4);
 }));
 test('real SDK: HTTP 200 headers, role-only SSE and keepalives do not count; late source output never reaches Pi',async()=>environment(async x=>{
  let late,cancelled=false;
@@ -122,7 +122,7 @@ test('real Pi editor explicitly saves response-start seconds independently and d
  await x.session.prompt('/free-ovh-pool');let saved=JSON.parse(await readFile(join(x.dir,'free-catalog/ovh-pool.json')));assert.equal(saved.responseStartTimeoutMs,60000);assert.equal(saved.maxWaitMs,0);
  for(const key of OWNED_STATUS_KEYS)x.statuses.set(key,'stale');
  x.menu.push(o=>o.find(v=>v.startsWith('Pool:')),'Apply settings');await x.session.prompt('/free-ovh-pool');saved=JSON.parse(await readFile(join(x.dir,'free-catalog/ovh-pool.json')));
- assert.equal(saved.enabled,false);assert.equal(saved.responseStartTimeoutMs,60000);assert.equal(x.wires.length,0);assert.equal(x.metadata,8);assertClean(x);
+ assert.equal(saved.enabled,false);assert.equal(saved.responseStartTimeoutMs,60000);assert.equal(x.wires.length,0);assert.equal(x.metadata,4);assertClean(x);
 }));
 test('real Pi: timed-out attempt retains received exhausted-quota evidence even after disabling the pool',async()=>environment(async x=>{
  x.setResponse((n,b)=>n===1?new Response(new ReadableStream({start(){}}),{headers:{'content-type':'text/event-stream',...counters(0)}}):sse(b.model,{content:'B finished'},'stop',counters(1)));
@@ -137,10 +137,10 @@ test('real Pi: timed-out attempt retains received exhausted-quota evidence even 
 test('real Pi: independent counts menu/commands are immediate, saved, restored, and never claim a foreign footer',async()=>environment(async x=>{
  const s=x.session,model=s.model,thinking=s.thinkingLevel,poolFile=join(x.dir,'free-catalog/ovh-pool.json');
  const originalPool=await readFile(poolFile,'utf8'),metadata=x.metadata,messages=structuredClone(s.messages);
- assert.equal(x.statuses.get('free-catalog'),'Free chat: Kilo 17 · Zen 9 · OVH 10');
+ assert.equal(x.statuses.get('free-catalog'),'Free chat: Kilo 17 · OVH 10');
  await s.prompt('/free-footer counts off');assert.equal(x.statuses.has('free-catalog'),false);assert.equal(x.footerCalls.length,0);
  assert.deepEqual(JSON.parse(await readFile(join(x.dir,'free-catalog/ui.json'))),{footer:'default',chatCounts:false});
- x.menu.push(o=>o[0],undefined);await s.prompt('/free-footer');assert.equal(x.statuses.get('free-catalog'),'Free chat: Kilo 17 · Zen 9 · OVH 10');
+ x.menu.push(o=>o[0],undefined);await s.prompt('/free-footer');assert.equal(x.statuses.get('free-catalog'),'Free chat: Kilo 17 · OVH 10');
  x.menu.push(undefined);await s.prompt('/free-footer');assert.equal(x.footerCalls.length,0);
  await s.prompt('/free-footer compact');const claimed=x.footerCalls.length;assert.equal(claimed,1);
  await s.prompt('/free-footer counts off');assert.equal(x.footerCalls.length,claimed);
@@ -150,7 +150,7 @@ test('real Pi: independent counts menu/commands are immediate, saved, restored, 
  assert.equal(s.model,model);assert.equal(s.thinkingLevel,thinking);assert.deepEqual(s.messages,messages);
  assert.equal(await readFile(poolFile,'utf8'),originalPool);assert.equal(x.metadata,metadata);assert.equal(x.wires.length,0);
  await x.restart();assert.equal(x.statuses.has('free-catalog'),false);
- await x.session.prompt('/free-footer counts on');assert.equal(x.statuses.get('free-catalog'),'Free chat: Kilo 17 · Zen 9 · OVH 10');
+ await x.session.prompt('/free-footer counts on');assert.equal(x.statuses.get('free-catalog'),'Free chat: Kilo 17 · OVH 10');
  assert.deepEqual(x.errors,[]);
 },{timeout:0}));
 
@@ -159,7 +159,7 @@ test('real Pi: display writes fail visibly without rollback, recover, and restar
  await x.session.prompt('/free-footer counts off');assert.equal(x.statuses.has('free-catalog'),false);
  assert.match(x.notices.at(-1),/Not saved:/);assert.equal(x.wires.length,0);
  await rm(path,{recursive:true});await x.restart();
- assert.equal(x.statuses.get('free-catalog'),'Free chat: Kilo 17 · Zen 9 · OVH 10');
+ assert.equal(x.statuses.get('free-catalog'),'Free chat: Kilo 17 · OVH 10');
  await x.session.prompt('/free-footer counts off');assert.equal(x.statuses.has('free-catalog'),false);
  assert.deepEqual(JSON.parse(await readFile(path)),{footer:'default',chatCounts:false});
  await x.restart();assert.equal(x.statuses.has('free-catalog'),false);assert.deepEqual(x.errors,[]);

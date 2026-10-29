@@ -61,7 +61,7 @@ test('real Pi: a later extension cancelling a session replacement cannot leave a
       onError: (e) => errors.push(e),
     });
     await session.setModel(
-      session.modelRuntime.getModel('free-zen', 'beam-free'),
+      session.modelRuntime.getModel('free-kilo', 'thinkingmachines/inkling-small:free'),
     );
     await session.prompt('/free-thinking high');
     const runtime = new AgentSessionRuntime(
@@ -77,7 +77,7 @@ test('real Pi: a later extension cancelling a session replacement cannot leave a
     assert.equal(runtime.session, session);
     session.setThinkingLevel('low');
     await session.prompt('17 * 19');
-    assert.equal(wires.at(-1).reasoning_effort, 'low');
+    assert.equal(wires.at(-1).reasoning?.effort, 'low');
     assert.deepEqual(errors, []);
   } finally {
     if (session) {

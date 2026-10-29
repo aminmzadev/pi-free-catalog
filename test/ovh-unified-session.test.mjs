@@ -53,7 +53,7 @@ test('real Pi: rapid A1/tool/A2/tool/B1 uses independent native modes without 31
   assert.equal(x.session.messages.filter(m=>m.role==='assistant').at(-1).stopReason,'stop');
   assert.equal(x.session.model.id,B);assert.equal(x.session.thinkingLevel,'low');
   assert.ok(performance.now()-start<2000,'ready requests should not use the wait budget');
-  assert.equal(x.metadata,8);assert.deepEqual(x.errors,[]);
+  assert.equal(x.metadata,4);assert.deepEqual(x.errors,[]);
   await assert.rejects(readFile(join(x.dir,'free-catalog/thinking.json')),{code:'ENOENT'});
   mock.timers.tick(39000);await x.session.prompt('Continue without running tools again.');
   assert.deepEqual(x.wires.map(b=>b.model),[A,A,B,A]);assert.equal(x.session.thinkingLevel,'high');assert.equal(x.tools.length,2);
@@ -89,7 +89,7 @@ test('real Pi: unknown arguments show current usage without configuration change
  await environment(async x=>{
   const file=join(x.dir,'free-catalog/ovh-pool.json'),before=await readFile(file);
   for(const action of ['unexpected','--bad-option','unknown extra'])await x.session.prompt('/free-ovh-pool '+action);
-  assert.deepEqual(await readFile(file),before);assert.equal(x.wires.length,0);assert.match(x.notices.at(-1),/Use \/free-ovh-pool/);assert.doesNotMatch(x.notices.at(-1),/migration|retired/i);assert.equal(x.metadata,8);
+  assert.deepEqual(await readFile(file),before);assert.equal(x.wires.length,0);assert.match(x.notices.at(-1),/Use \/free-ovh-pool/);assert.doesNotMatch(x.notices.at(-1),/migration|retired/i);assert.equal(x.metadata,4);
  });
 });
 
@@ -100,7 +100,7 @@ test('real Pi: unified editor saves native per-model thinking, wait and real pri
   await x.session.prompt('/free-ovh-pool');
   const c=JSON.parse(await readFile(join(x.dir,'free-catalog/ovh-pool.json'),'utf8'));
   assert.equal(c.maxWaitMs,1500);assert.equal(c.thinking[B],'high');assert.equal(x.session.model.id,A);
-  assert.equal(x.wires.length,0);assert.equal(x.metadata,8);assert.deepEqual(x.errors,[]);
+  assert.equal(x.wires.length,0);assert.equal(x.metadata,4);assert.deepEqual(x.errors,[]);
  },{select:async(title,options)=>{
   if(title.startsWith('OVH pool — configuration'))return [options.find(s=>s.startsWith('Maximum wait:')),'Edit per-model thinking',options.find(s=>s.startsWith('Select primary on Apply:')),'Apply settings'][main++];
   if(title.startsWith('OVH pool — per-model thinking'))return think++===0?options.find(s=>s.startsWith(B+' —')):'Back';
@@ -113,7 +113,7 @@ test('real Pi: unified editor saves native per-model thinking, wait and real pri
 test('real Pi: oversized context skips two smaller models and uses later model with its own native off mapping',async()=>{
  const C='Qwen3.8-27B',D='Qwen3.5-397B-A17B';
  await environment(async x=>{
-  await x.session.prompt('x'.repeat(140000));assert.deepEqual(x.wires.map(b=>b.model),[C]);assert.equal(x.wires[0].reasoning_effort,'none');assert.equal(x.session.model.id,C);assert.equal(x.session.thinkingLevel,'off');assert.equal(x.session.messages.filter(m=>m.role==='assistant').at(-1).stopReason,'stop');assert.ok(JSON.stringify(x.wires[0].messages).includes('x'.repeat(140000)));assert.equal(x.metadata,8);assert.deepEqual(x.errors,[]);
+  await x.session.prompt('x'.repeat(140000));assert.deepEqual(x.wires.map(b=>b.model),[C]);assert.equal(x.wires[0].reasoning_effort,'none');assert.equal(x.session.model.id,C);assert.equal(x.session.thinkingLevel,'off');assert.equal(x.session.messages.filter(m=>m.role==='assistant').at(-1).stopReason,'stop');assert.ok(JSON.stringify(x.wires[0].messages).includes('x'.repeat(140000)));assert.equal(x.metadata,4);assert.deepEqual(x.errors,[]);
  },{initial:config({models:[A,B,C,D],thinking:{[A]:'high',[B]:'low',[C]:'none',[D]:'default'}})});
 });
 

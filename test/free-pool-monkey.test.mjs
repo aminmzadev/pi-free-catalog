@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { FreePool,poolKey } from '../src/free-pool.js';
 import { environment } from './free-pool-helper.mjs';
-const keys=['["kilo","same"]','["zen","same"]','["ovh","same"]','["ovh","second"]'];
+const keys=['["kilo","same"]','["kilo","second"]','["ovh","same"]','["ovh","second"]'];
 const seedText=process.env.FREE_POOL_MONKEY_SEED;
 if(seedText!==undefined&&(!/^\d+$/.test(seedText)||!Number.isSafeInteger(Number(seedText))||Number(seedText)>0xffffffff))throw Error('FREE_POOL_MONKEY_SEED must be uint32');
 const count=Number(process.env.FREE_POOL_MONKEY_STEPS??500);
@@ -64,7 +64,7 @@ async function run(seed,steps,{failAt=-1,failureDir}={}){
    else if(op===6){
     const key=models[random(models.length)];c={...c,weights:{...c.weights,[key]:JSON.parse(key)[0]==='ovh'?1+random(2):1+random(6)}};r=baseRotation();plan();await pool.saveDraft(c,pool.config,{restart:true,consent:true});row.weights=copy(c.weights);
    }else if(op===7){
-    const service=random(2)?'kilo':'zen',seconds=1+random(60);barriers[service]={until:Math.max(barriers[service]?.until??0,x.now+seconds*1000)};plan();
+    const service=random(2)?'kilo':'kilo',seconds=1+random(60);barriers[service]={until:Math.max(barriers[service]?.until??0,x.now+seconds*1000)};plan();
     await pool.observe('same',new Response('',{status:429,headers:{'retry-after':String(seconds),'x-ratelimit-scope':'service'}}),{},service);row.service=service;row.seconds=seconds;
    }else if(op===8){await reload(random(5)===0);row.paused=r.paused;}
    else if(op===9){

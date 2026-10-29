@@ -1,7 +1,7 @@
 {
   "name": "pi-free-catalog",
-  "version": "0.1.7",
-  "description": "Live, auditable anonymous Kilo, OpenCode and OVHcloud model catalogs for Pi. No account or name-based free filtering.",
+  "version": "0.1.8",
+  "description": "Live, auditable anonymous Kilo and OVHcloud model catalogs for Pi. No account or name-based free filtering.",
   "type": "module",
   "license": "MIT",
   "author": "Amin Mozaffari <aminmozaffari1185@gmail.com>",
@@ -9,7 +9,6 @@
     "pi-package",
     "pi",
     "kilo",
-    "opencode",
     "free-models",
     "ovhcloud"
   ],

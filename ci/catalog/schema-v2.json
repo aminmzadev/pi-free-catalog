@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://aminmzadev.github.io/pi-free-catalog/catalog/v1/schema.json",
-  "title": "Pi Free Catalog backend snapshot v1",
+  "$id": "https://aminmzadev.github.io/pi-free-catalog/catalog/v2/schema.json",
+  "title": "Pi Free Catalog backend snapshot v2",
   "description": "Envelope schema. core.mjs additionally enforces production source semantics, timestamps, reconciliation, hashes and quality gates.",
   "type": "object",
   "additionalProperties": false,
@@ -18,7 +18,7 @@
   ],
   "properties": {
     "schemaVersion": {
-      "const": 1
+      "const": 2
     },
     "generatedAt": {
       "type": "string",
@@ -71,10 +71,6 @@
       "additionalProperties": false,
       "required": [
         "kilo",
-        "zen",
-        "official",
-        "modelsdev",
-        "pi",
         "ovh",
         "ovhmeta"
       ],
@@ -88,62 +84,6 @@
               "properties": {
                 "url": {
                   "const": "https://api.kilo.ai/api/gateway/models"
-                }
-              }
-            }
-          ]
-        },
-        "zen": {
-          "allOf": [
-            {
-              "$ref": "#/$defs/source"
-            },
-            {
-              "properties": {
-                "url": {
-                  "const": "https://opencode.ai/zen/v1/models"
-                }
-              }
-            }
-          ]
-        },
-        "official": {
-          "allOf": [
-            {
-              "$ref": "#/$defs/source"
-            },
-            {
-              "properties": {
-                "url": {
-                  "const": "https://models.opencode.ai/api.json"
-                }
-              }
-            }
-          ]
-        },
-        "modelsdev": {
-          "allOf": [
-            {
-              "$ref": "#/$defs/source"
-            },
-            {
-              "properties": {
-                "url": {
-                  "const": "https://models.dev/api.json"
-                }
-              }
-            }
-          ]
-        },
-        "pi": {
-          "allOf": [
-            {
-              "$ref": "#/$defs/source"
-            },
-            {
-              "properties": {
-                "url": {
-                  "const": "https://pi.dev/api/models/providers/opencode?types=chat,image,classifier"
                 }
               }
             }
@@ -215,7 +155,6 @@
       "type": "object",
       "required": [
         "kilo",
-        "zen",
         "ovh"
       ]
     },
@@ -267,10 +206,6 @@
               "name": {
                 "enum": [
                   "kilo",
-                  "zen",
-                  "official",
-                  "modelsdev",
-                  "pi",
                   "ovh",
                   "ovhmeta"
                 ]

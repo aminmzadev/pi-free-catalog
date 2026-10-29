@@ -1,4 +1,4 @@
-import { PROVIDERS, isRecord, array, modelRows } from "./catalog.js";
+import { PROVIDERS, isRecord, array } from "./catalog.js";
 import { OVH_BASE } from "./ovh.js";
 export const LEVELS = [
   "off",
@@ -14,7 +14,6 @@ export function thinkingProfile(entry, state) {
   const m = isRecord(entry.metadata) ? entry.metadata : {},
     choices = Object.create(null);
   let controlSource = entry.evidence;
-  let controlsFromHint = false;
   if (entry.service === "kilo") {
     for (const [key, value] of Object.entries(
       isRecord(m.opencode?.variants) ? m.opencode.variants : {},
@@ -57,21 +56,10 @@ export function thinkingProfile(entry, state) {
       }
     }
   }
-  const piModels = modelRows(state?.sources?.pi?.data);
-  const hint =
-    entry.service === "zen"
-      ? piModels.find((x) => x.id === entry.id)
-      : undefined;
   if (!Object.keys(choices).length) {
     const sourceMap = isRecord(m.thinkingLevelMap)
       ? m.thinkingLevelMap
-      : isRecord(hint?.thinkingLevelMap)
-        ? hint.thinkingLevelMap
-        : {};
-    if (sourceMap === hint?.thinkingLevelMap) {
-      controlSource = "pi";
-      controlsFromHint = true;
-    }
+      : {};
     for (const [level, effort] of Object.entries(sourceMap)) {
       if (typeof effort === "string")
         choices[level] = { label: level, params: { reasoning_effort: effort } };
@@ -130,13 +118,9 @@ export function thinkingProfile(entry, state) {
       : "provider-default-only",
     provenance: {
       source: controlSource || null,
-      fresh: controlsFromHint
-        ? state?.sources?.pi?.fresh === true
-        : entry.metadataRetained === false &&
+      fresh: entry.metadataRetained === false &&
           state?.sources?.[controlSource]?.fresh === true,
-      fetchedAt: controlsFromHint
-        ? state?.sources?.pi?.fetchedAt || null
-        : entry.metadataProvenance?.fetchedAt || null,
+      fetchedAt: entry.metadataProvenance?.fetchedAt || null,
       documentFetchedAt: state?.sources?.[controlSource]?.fetchedAt || null,
     },
     note: Object.keys(choices).length
@@ -145,6 +129,7 @@ export function thinkingProfile(entry, state) {
   };
 }
 export function piModel(entry, state) {
+  if (!Object.hasOwn(PROVIDERS, entry.service)) throw new Error("Unknown free provider");
   const m = isRecord(entry.metadata) ? entry.metadata : {},
     kilo = entry.service === "kilo";
   const input = array(
@@ -166,16 +151,7 @@ export function piModel(entry, state) {
   if (entry.type === "chat" && maxTokens !== max)
     warnings.push("output limit unknown; local safety fallback 2048");
   const profile = thinkingProfile(entry, state);
-  const hint =
-    entry.service === "zen"
-      ? modelRows(state.sources.pi?.data).find((x) => x.id === entry.id)
-      : null;
-  let api =
-    typeof m.api === "string"
-      ? m.api
-      : typeof hint?.api === "string"
-        ? hint.api
-        : "openai-completions";
+  let api = typeof m.api === "string" ? m.api : "openai-completions";
   if (kilo) {
     api =
       (typeof m.openclaw?.api_adapter === "string"
@@ -184,7 +160,7 @@ export function piModel(entry, state) {
       (m.opencode?.ai_sdk_provider === "anthropic"
         ? "anthropic-messages"
         : "openai-completions");
-  } else if (!m.api && !hint?.api) {
+  } else if (!m.api) {
     const npm = m.provider?.npm;
     if (npm === "@ai-sdk/anthropic") api = "anthropic-messages";
     if (npm === "@ai-sdk/openai") api = "openai-responses";
@@ -197,19 +173,15 @@ export function piModel(entry, state) {
     api,
     input: input.includes("image") ? ["text", "image"] : ["text"],
     cost: { ...cost },
-    baseUrl: entry.service === "ovh" ? OVH_BASE : kilo
-      ? "https://api.kilo.ai/api/gateway"
-      : "https://opencode.ai/inference/v1",
+    baseUrl: entry.service === "ovh" ? OVH_BASE : "https://api.kilo.ai/api/gateway",
   };
-  if (entry.type === "classifier") return { ...base, contextWindow };
   if (entry.type !== "chat") return null;
-  // Pi-native compatibility overrides from the live Pi catalog are keyed by exact ID.
+  // Only the selected provider record supplies compatibility overrides.
   const compat = {
     supportsStore: false,
     supportsDeveloperRole: false,
     supportsStrictMode: entry.service !== "ovh",
     maxTokensField: "max_tokens",
-    ...(isRecord(hint?.compat) ? hint.compat : {}),
     ...(isRecord(m.compat) ? m.compat : {}),
   };
   if (kilo) {

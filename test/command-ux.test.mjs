@@ -184,7 +184,7 @@ test('thinking completion follows current plain model identity and actual native
 test('removed saved native mode remains inspectable with recovery instructions', async () =>
   environment(
     async (x) => {
-      x.ctx.model = { provider: 'free-zen', id: 'beam-free' };
+      x.ctx.model = { provider: 'free-kilo', id: 'thinkingmachines/inkling-small:free' };
       await x.events.get('session_start')({}, x.ctx);
       await x.commands.get('free-thinking').handler('', x.ctx);
       const result = JSON.parse(x.output.at(-1));
@@ -193,13 +193,13 @@ test('removed saved native mode remains inspectable with recovery instructions',
       assert.match(result.recovery, /\/free-thinking auto/);
       assert.ok(result.nativeChoices.low);
     },
-    { selection: { [recordKey('zen', 'beam-free')]: 'removed-mode' } },
+    { selection: { [recordKey('kilo', 'thinkingmachines/inkling-small:free')]: 'removed-mode' } },
   ));
 
 test('footer write failure applies runtime change and explicitly reports that it is unsaved', async () =>
   environment(async (x) => {
     await mkdir(join(x.dir, 'free-catalog/ui.json'));
-    x.ctx.model = { provider: 'free-zen', id: 'beam-free' };
+    x.ctx.model = { provider: 'free-kilo', id: 'thinkingmachines/inkling-small:free' };
     await x.commands.get('free-footer').handler('compact', x.ctx);
     assert.match(x.output.at(-1), /Not saved:/);
     await x.commands.get('free-footer').handler('', x.ctx);
@@ -209,7 +209,7 @@ test('footer write failure applies runtime change and explicitly reports that it
 test('thinking write failure is explicit, keeps the chosen runtime mode, and drains safely on shutdown', async () =>
   environment(async (x) => {
     await mkdir(join(x.dir, 'free-catalog/thinking.json'));
-    x.ctx.model = { provider: 'free-zen', id: 'beam-free' };
+    x.ctx.model = { provider: 'free-kilo', id: 'thinkingmachines/inkling-small:free' };
     await x.events.get('session_start')({}, x.ctx);
     await x.commands.get('free-thinking').handler('high', x.ctx);
     assert.match(x.output.at(-1), /Not saved:/);

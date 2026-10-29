@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { SOURCES, validateSource, validateState, reconcile, summary, modelRows } from './catalog.js';
 export { SOURCES };
 export const REPOSITORY = 'aminmzadev/pi-free-catalog';
-export const PREVIOUS_URL = 'https://aminmzadev.github.io/pi-free-catalog/catalog/v1/latest.json';
+export const PREVIOUS_URL = 'https://aminmzadev.github.io/pi-free-catalog/catalog/v2/latest.json';
 export const MAX_SOURCE_BYTES = 16 * 1024 * 1024;
 export const MAX_SNAPSHOT_BYTES = 32 * 1024 * 1024;
 export const SOURCE_NAMES = Object.keys(SOURCES).sort();
@@ -38,11 +38,10 @@ export async function rulesHash() {
 export function project(name, value) {
   validateSource(name, value);
   assert.ok(rowCount(name,value) <= (name === 'ovh' || name === 'ovhmeta' ? 2000 : 10000),'Source row count exceeds safety limit');
-  // The production reconciler only reads this complete provider slice. No eligible OpenCode IDs are filtered.
-  return normalize(['official', 'modelsdev'].includes(name) ? { opencode: { models: value.opencode.models } } : value);
+  return normalize(value);
 }
 export function rowCount(name, data) {
-  return ['official', 'modelsdev'].includes(name) ? Object.keys(data.opencode.models).length : name === 'ovhmeta' ? data.length : modelRows(data).length;
+  return name === 'ovhmeta' ? data.length : modelRows(data).length;
 }
 export function asState(snapshot) {
   return { schemaVersion: 1, refreshedAt: snapshot.generatedAt, sources: snapshot.sources, ...snapshot.catalog };
@@ -53,7 +52,7 @@ export function seal(snapshot) {
 }
 export function validateSnapshot(snapshot, { expectedRules, now = Date.now() } = {}) {
   keys(snapshot, ['schemaVersion','generatedAt','producer','rulesHash','sources','catalog','summary','quality','integrity'], 'snapshot');
-  assert.equal(snapshot.schemaVersion, 1, 'Unsupported snapshot version');
+  assert.equal(snapshot.schemaVersion, 2, 'Unsupported snapshot version');
   const generated = timestamp(snapshot.generatedAt);
   assert.ok(generated <= now + 300000, 'Snapshot is from the future');
   keys(snapshot.producer, ['repository','workflow','commit','runId'], 'producer');
@@ -91,7 +90,7 @@ export function validateSnapshot(snapshot, { expectedRules, now = Date.now() } =
   const state = validateState(asState(snapshot));
   assert.ok(Object.keys(state.entries).length > 0 && Object.keys(state.entries).length <= 30000);
   assert.ok(state.history.length <= 2000);
-  for (const source of ['kilo','zen','ovh']) for (const row of modelRows(snapshot.sources[source].data)) {
+  for (const source of ['kilo','ovh']) for (const row of modelRows(snapshot.sources[source].data)) {
     assert.ok(Object.hasOwn(state.entries, JSON.stringify([source,row.id])), 'Listed ID was omitted');
   }
   // Fixed-point check: the existing production rules must reproduce every stored entry, including stale verdicts/history.
@@ -105,7 +104,7 @@ export function validateSnapshot(snapshot, { expectedRules, now = Date.now() } =
   for (const change of snapshot.quality.largeChanges) {
     keys(change, ['kind','name','before','after'], 'change');
     assert.ok(['source-rows','eligible-models'].includes(change.kind));
-    assert.ok(change.kind === 'source-rows' ? SOURCE_NAMES.includes(change.name) : ['kilo','zen','ovh'].includes(change.name));
+    assert.ok(change.kind === 'source-rows' ? SOURCE_NAMES.includes(change.name) : ['kilo','ovh'].includes(change.name));
     assert.ok(Number.isSafeInteger(change.before) && change.before > 0 && Number.isSafeInteger(change.after) && change.after >= 0 && change.after < change.before / 2);
   }
   assert.ok(!snapshot.quality.largeChanges.length || snapshot.quality.largeChangesApproved, 'Large change requires manual review');

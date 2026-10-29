@@ -39,10 +39,10 @@ function expectedSettings(raw) {
   return { footer: data.footer === 'compact' ? 'compact' : 'default', chatCounts: data.chatCounts === false ? false : true };
 }
 function expectedCounts(rows) {
-  const result = [0, 0, 0];
+  const result = [0, 0];
   for (const row of Object.values(rows)) {
     if (row.listed && row.type === 'chat' && row.classification === 'free' && row.lifecycle !== 'retired') {
-      const i = ['kilo', 'zen', 'ovh'].indexOf(row.service); if (i >= 0) result[i]++;
+      const i = ['kilo', 'ovh'].indexOf(row.service); if (i >= 0) result[i]++;
     }
   }
   return result;
@@ -76,7 +76,7 @@ export async function runFooterMonkey(seed, steps = 400, { injectFailureAt = -1,
   const makeCatalog = () => {
     const entries = {};
     for (let i = 0, n = 10 + random(55); i < n; i++) entries[`record-${i}`] = {
-      service: ['kilo', 'zen', 'ovh'][random(3)], type: ['chat', 'chat', 'classifier', 'embedding', 'image', 'unknown'][random(6)],
+      service: ['kilo', 'ovh'][random(2)], type: ['chat', 'chat', 'classifier', 'embedding', 'image', 'unknown'][random(6)],
       listed: random(5) !== 0, classification: ['free', 'free', 'paid', 'unknown'][random(4)],
       lifecycle: ['active', 'provisional', 'retired', 'deprecated'][random(4)],
     };
@@ -120,11 +120,11 @@ export async function runFooterMonkey(seed, steps = 400, { injectFailureAt = -1,
     if (!oracle.chatCounts) assert.equal(text, undefined);
     else {
       // Headless modes intentionally subscribe to no terminal resize events.
-      const [k, z, o] = expectedCounts(state.entries), width = ctx.hasUI ? terminal.columns : lastRenderedColumns;
+      const [k, o] = expectedCounts(state.entries), width = ctx.hasUI ? terminal.columns : lastRenderedColumns;
       assert.equal(typeof text, 'string'); assert.ok(visibleWidth(text) <= width);
-      const full = `Free chat: Kilo ${k} · Zen ${z} · OVH ${o}`, minimum = `K${k} Z${z} O${o}`;
+      const full = `Free chat: Kilo ${k} · OVH ${o}`, minimum = `K${k} O${o}`;
       if (width >= full.length) assert.equal(text, full);
-      else if (width >= minimum.length) assert.deepEqual((text.match(/\d+/g) ?? []).map(Number), [k, z, o]);
+      else if (width >= minimum.length) assert.deepEqual((text.match(/\d+/g) ?? []).map(Number), [k, o]);
       else assert.equal(text, minimum.slice(0, width));
       assert.doesNotMatch(text, /pool|thinking|model|\x1b|\n/i);
     }
@@ -165,7 +165,7 @@ export async function runFooterMonkey(seed, steps = 400, { injectFailureAt = -1,
         }
         case 2: detail.enabled = random(2) === 1; detail.fail = random(7) === 0; detail.delay = random(3); write({ chatCounts: detail.enabled }, detail.fail, detail.delay); break;
         case 3: detail.mode = random(2) ? 'compact' : 'default'; mayClaim = detail.mode === 'compact'; write({ footer: detail.mode }); break;
-        case 4: ctx.model = { provider: ['free-kilo', 'free-zen', 'free-ovh', 'paid-provider'][random(4)], id: `model-${random(30)}`, contextWindow: 32768 }; detail.model = { ...ctx.model }; activity.clear(ctx); waiting = false; counts.update(ctx); footer(ctx); break;
+        case 4: ctx.model = { provider: ['free-kilo', 'free-kilo', 'free-ovh', 'paid-provider'][random(4)], id: `model-${random(30)}`, contextWindow: 32768 }; detail.model = { ...ctx.model }; activity.clear(ctx); waiting = false; counts.update(ctx); footer(ctx); break;
         case 5: detail.label = random(2) ? 'start' : 'wait'; activity.wait(ctx, 90000, detail.label); waiting = ctx.hasUI; break;
         case 6: terminal.columns = [1, 2, 4, 7, 8, 12, 20, 24, 32, 40, 80, 200][random(12)]; detail.width = terminal.columns; terminal.emit('resize'); break;
         case 7: detail.outcome = ['responded', 'aborted', 'error'][random(3)]; activity.clear(ctx); waiting = false; break;

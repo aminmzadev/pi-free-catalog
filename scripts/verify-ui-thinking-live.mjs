@@ -29,7 +29,7 @@ const log = (x) =>
 dc.subscribe("undici:request:create", ({ request }) => {
   if (
     request.method === "POST" &&
-    /api\.kilo\.ai|opencode\.ai/.test(String(request.origin))
+    /api\.kilo\.ai|oai\.endpoints\.kepler\.ai\.cloud\.ovh\.net/.test(String(request.origin))
   )
     requests.set(request, { id: ++requestCount, parts: [] });
 });
@@ -110,7 +110,7 @@ async function chat(label, provider, id, setup) {
 async function tools(provider, id) {
   await session.setModel(session.modelRuntime.getModel(provider, id));
   session.setThinkingLevel("low");
-  const dir = join(root, provider + "-tools");
+  const dir = join(root, provider + "-" + id.replaceAll("/", "_") + "-tools");
   await mkdir(dir, { recursive: true });
   const token = randomBytes(12).toString("hex"),
     fixture = "TOKEN=" + token + "\n",
@@ -156,7 +156,7 @@ async function tools(provider, id) {
       (await readFile(join(dir, "verify.py"), "utf8")) === verifier,
   });
   const c = {
-    label: provider + "-four-tools",
+    label: provider + "/" + id + "-four-tools",
     provider,
     id,
     piThinking: session.thinkingLevel,
@@ -238,7 +238,7 @@ try {
     throw new Error("Default tools missing");
   result.models = session.modelRuntime
     .getAllModels()
-    .filter((m) => m.provider === "free-kilo" || m.provider === "free-zen")
+    .filter((m) => m.provider === "free-kilo" || m.provider === "free-kilo")
     .map((m) => ({
       id: m.id,
       provider: m.provider,
@@ -248,15 +248,15 @@ try {
   if (!process.argv.includes("--toggle-only"))
     for (const [provider, id] of [
       ["free-kilo", "reflection/beam-free"],
-      ["free-zen", "beam-free"],
+      ["free-kilo", "thinkingmachines/inkling-small:free"],
     ]) {
-      await chat(provider + "-slash-low", provider, id, () =>
+      await chat(provider + "/" + id + "-slash-low", provider, id, () =>
         session.prompt("/free-thinking low"),
       );
       await session.prompt("/free-thinking high");
       if (session.thinkingLevel !== "high")
         throw new Error("Slash did not change Pi");
-      await chat(provider + "-pi-low-after-high", provider, id, async () =>
+      await chat(provider + "/" + id + "-pi-low-after-high", provider, id, async () =>
         session.setThinkingLevel("low"),
       );
       await tools(provider, id);

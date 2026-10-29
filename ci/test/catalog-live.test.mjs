@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { gunzipSync } from 'node:zlib';
 import { verifyPublicSnapshot, LIVE_POLICY } from '../catalog/verify-live.mjs';
 import { collect, rulesHash, SOURCE_NAMES, SOURCES, PREVIOUS_URL, REPOSITORY, canonical, seal, sha256 } from '../catalog/core.mjs';
-const files={kilo:'kilo',zen:'opencode',official:'opencode-capabilities',modelsdev:'models-dev',pi:'pi-opencode-catalog',ovh:'ovh-models',ovhmeta:'ovh-catalog'};
+const files={kilo:'kilo',ovh:'ovh-models',ovhmeta:'ovh-catalog'};
 const fixtures=Object.fromEntries(await Promise.all(Object.entries(files).map(async([k,f])=>[k,JSON.parse(gunzipSync(await readFile(new URL('../../test/fixtures/'+f+'.json.gz',import.meta.url))))])));
 const rules=await rulesHash(),commit='a'.repeat(40),runId='4242';
 const good=await collect({now:'2026-10-22T00:00:00.000Z',producer:{repository:REPOSITORY,workflow:'catalog.yml',commit,runId},expectedRules:rules,fetcher:async url=>{const name=SOURCE_NAMES.find(n=>SOURCES[n]===url);assert.ok(name,'No network URL outside fixture map');return Response.json(fixtures[name]);}});

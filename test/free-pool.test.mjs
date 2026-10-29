@@ -5,63 +5,63 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { FreePool,freePoolDefaults,validateFreePool,schedulingMode,poolKey,parsePoolKey } from '../src/free-pool.js';
 import { editFreePool } from '../src/free-pool-editor.js';
-import { environment,K,Z,A,B,context } from './free-pool-helper.mjs';
+import { environment,K,K2,A,B,context } from './free-pool-helper.mjs';
 
-for(const [models,mode]of [[[K,Z],'round-robin'],[[K,A],'priority'],[[A,B],'priority'],[[K,Z,A],'priority']])test('automatic default '+JSON.stringify(models),()=>{
+for(const [models,mode]of [[[K,K2],'round-robin'],[[K,A],'priority'],[[A,B],'priority'],[[K,K2,A],'priority']])test('automatic default '+JSON.stringify(models),()=>{
  assert.equal(schedulingMode(validateFreePool({...freePoolDefaults(),models})),mode);
 });
 test('explicit priority/round robin override automatic defaults without changing enablement',()=>{
- for(const scheduling of ['priority','round-robin'])assert.equal(schedulingMode(validateFreePool({...freePoolDefaults(),models:[K,Z],scheduling})),scheduling);
+ for(const scheduling of ['priority','round-robin'])assert.equal(schedulingMode(validateFreePool({...freePoolDefaults(),models:[K,K2],scheduling})),scheduling);
  assert.equal(freePoolDefaults().enabled,false);
 });
 for(const w of [0,3,100,-1,1.5,'2',Infinity])test('OVH rejects requests per visit '+w,()=>assert.throws(()=>validateFreePool({...freePoolDefaults(),models:[A,B],weights:{[A]:w}}),/OVH/));
 for(const w of [1,2])test('OVH accepts weight '+w,()=>assert.equal(validateFreePool({...freePoolDefaults(),models:[A,B],weights:{[A]:w}}).weights[A],w));
-test('OVH default is 2; Kilo/Zen default is 1 and can be 3/4/100',()=>{
- const c=validateFreePool({...freePoolDefaults(),models:[A,K,Z]});assert.equal(c.weights[A],2);assert.equal(c.weights[K],1);
- assert.equal(validateFreePool({...freePoolDefaults(),models:[K,Z],weights:{[K]:100,[Z]:4}}).weights[K],100);
+test('OVH default is 2; Kilo siblings default is 1 and can be 3/4/100',()=>{
+ const c=validateFreePool({...freePoolDefaults(),models:[A,K,K2]});assert.equal(c.weights[A],2);assert.equal(c.weights[K],1);
+ assert.equal(validateFreePool({...freePoolDefaults(),models:[K,K2],weights:{[K]:100,[K2]:4}}).weights[K],100);
 });
-for(const raw of [{models:[K,K]},{models:['kilo/foo']},{models:['["bad","id"]']},{models:[K],enabled:true},{models:[K,Z],weights:{alien:1}},{models:[K,Z],cycles:-1},{models:[K,Z],cycles:1,scheduling:'priority'},{models:[K,Z],weights:{[K]:101}},{models:[K,Z],maxWaitMs:60001},{models:[K,Z],responseStartTimeoutMs:300001}])test('invalid configuration '+JSON.stringify(raw),()=>assert.throws(()=>validateFreePool({...freePoolDefaults(),...raw})));
+for(const raw of [{models:[K,K]},{models:['kilo/foo']},{models:['["bad","id"]']},{models:[K],enabled:true},{models:[K,K2],weights:{alien:1}},{models:[K,K2],cycles:-1},{models:[K,K2],cycles:1,scheduling:'priority'},{models:[K,K2],weights:{[K]:101}},{models:[K,K2],maxWaitMs:60001},{models:[K,K2],responseStartTimeoutMs:300001}])test('invalid configuration '+JSON.stringify(raw),()=>assert.throws(()=>validateFreePool({...freePoolDefaults(),...raw})));
 test('provider-qualified identities are exact, round-trip and cannot collide',()=>{
- const a='["kilo","same"]',b='["zen","same"]';assert.notEqual(a,b);assert.equal(parsePoolKey(a).provider,'free-kilo');
- assert.throws(()=>parsePoolKey('[ "kilo", "same" ]'));assert.throws(()=>parsePoolKey('["zen","bad\\u001bid"]'));
+ const a='["kilo","same"]',b='["kilo","second"]';assert.notEqual(a,b);assert.equal(parsePoolKey(a).provider,'free-kilo');
+ assert.throws(()=>parsePoolKey('[ "kilo", "same" ]'));assert.throws(()=>parsePoolKey('["kilo","bad\\u001bid"]'));
 });
 test('weighted block round robin produces 3/4/1, then repeats; no autonomous sends',async()=>{
- const x=environment({models:[K,Z,A],weights:{[K]:3,[Z]:4,[A]:1},scheduling:'round-robin'});await x.enable();
+ const x=environment({models:[K,K2,A],weights:{[K]:3,[K2]:4,[A]:1},scheduling:'round-robin'});await x.enable();
  assert.equal(x.sends,0);const output=[];for(let i=0;i<16;i++)output.push(await x.next());
- assert.deepEqual(output,[K,K,K,Z,Z,Z,Z,A,K,K,K,Z,Z,Z,Z,A]);assert.equal(x.sends,16);
+ assert.deepEqual(output,[K,K,K,K2,K2,K2,K2,A,K,K,K,K2,K2,K2,K2,A]);assert.equal(x.sends,16);
 });
-test('Kilo/Zen-only does not stick forever to the first always-ready model',async()=>{
- const x=environment();await x.enable();assert.deepEqual([await x.next(),await x.next(),await x.next(),await x.next()],[K,Z,K,Z]);
+test('Kilo siblings-only does not stick forever to the first always-ready model',async()=>{
+ const x=environment();await x.enable();assert.deepEqual([await x.next(),await x.next(),await x.next(),await x.next()],[K,K2,K,K2]);
 });
 test('priority intentionally keeps returning to a ready primary',async()=>{
  const x=environment({scheduling:'priority'});await x.enable();assert.deepEqual([await x.next(),await x.next(),await x.next()],[K,K,K]);
 });
 test('finite allowance pauses before an extra send and restart is explicit; cooldowns are not reset',async()=>{
- const x=environment({models:[K,Z],weights:{[K]:3,[Z]:4},cycles:1});await x.enable();
+ const x=environment({models:[K,K2],weights:{[K]:3,[K2]:4},cycles:1});await x.enable();
  for(let n=0;n<7;n++)await x.next();assert.equal(x.pool.rotation.paused,true);assert.equal(x.pool.rotation.completed,1);
  await assert.rejects(x.next(),/paused/);assert.equal(x.sends,7);
  await x.pool.saveDraft({...x.pool.config,maxWaitMs:100},x.pool.config,{consent:true});assert.equal(x.pool.rotation.paused,true);
- x.pool.barriers.set('zen',{until:9000});await x.pool.saveDraft(x.pool.config,x.pool.config,{restart:true,consent:true});assert.equal(x.pool.rotation.completed,0);assert.equal(x.pool.until(Z),9000);
+ x.pool.barriers.set('kilo',{until:9000});await x.pool.saveDraft(x.pool.config,x.pool.config,{restart:true,consent:true});assert.equal(x.pool.rotation.completed,0);assert.equal(x.pool.until(K2),9000);
 });
 test('two cycles of 3/4/1 stop after exactly sixteen reserved sends',async()=>{
- const x=environment({models:[K,Z,A],weights:{[K]:3,[Z]:4,[A]:1},cycles:2,scheduling:'round-robin'});await x.enable();for(let n=0;n<16;n++)await x.next();await assert.rejects(x.next(),/paused/);assert.equal(x.sends,16);
+ const x=environment({models:[K,K2,A],weights:{[K]:3,[K2]:4,[A]:1},cycles:2,scheduling:'round-robin'});await x.enable();for(let n=0;n<16;n++)await x.next();await assert.rejects(x.next(),/paused/);assert.equal(x.sends,16);
 });
 test('unavailable visits skip without fake sends; a finite pass cannot wait forever',async()=>{
  const x=environment({cycles:1});await x.enable();x.catalog.state.entries[K].listed=false;
- assert.equal(await x.next(),Z);assert.equal(x.sends,1);assert.equal(x.pool.rotation.completed,1);await assert.rejects(x.next(),/paused/);
+ assert.equal(await x.next(),K2);assert.equal(x.sends,1);assert.equal(x.pool.rotation.completed,1);await assert.rejects(x.next(),/paused/);
 });
 test('all ineligible or incompatible entries terminate boundedly',async()=>{
  const x=environment();await x.enable();x.pool.reason=()=> 'does not fit';await assert.rejects(x.next(),/No ready/);assert.equal(x.sends,0);
 });
 test('unknown Kilo 429 gates its exact model and honors Retry-After',async()=>{
  const x=environment();await x.enable();await x.pool.observe('reflection/beam-free',new Response('{}',{status:429,headers:{'retry-after':'10'}}),{},'kilo');
- assert.equal(x.sends,0);assert.equal(x.pool.until(K),x.now+10000);assert.equal(await x.next(),Z);
- assert.equal(x.disk.modelBarriers[K].until,11000);assert.equal(x.disk.approvedProviders.join(','),'kilo,zen');
+ assert.equal(x.sends,0);assert.equal(x.pool.until(K),x.now+10000);assert.equal(await x.next(),K2);
+ assert.equal(x.disk.modelBarriers[K].until,11000);assert.equal(x.disk.approvedProviders.join(','),'kilo');
 });
 test('Retry-After cannot shorten an existing barrier and no model RPM is invented',async()=>{
- const x=environment();await x.enable();await x.pool.observe('beam-free',new Response('',{status:503,headers:{'retry-after':'20'}}),{},'zen');
- await x.pool.observe('beam-free',new Response('',{status:429,headers:{'retry-after':'1'}}),{},'zen');assert.equal(x.pool.until(Z),21000);
- await x.pool.observe('beam-free',new Response('',{status:200}),{},'zen');assert.equal(x.pool.until(Z),21000);
+ const x=environment();await x.enable();await x.pool.observe('thinkingmachines/inkling-small:free',new Response('',{status:503,headers:{'retry-after':'20'}}),{},'kilo');
+ await x.pool.observe('thinkingmachines/inkling-small:free',new Response('',{status:429,headers:{'retry-after':'1'}}),{},'kilo');assert.equal(x.pool.until(K2),21000);
+ await x.pool.observe('thinkingmachines/inkling-small:free',new Response('',{status:200}),{},'kilo');assert.equal(x.pool.until(K2),21000);
 });
 test('OVH durable two-per-minute ledger overrides a fast rotation and survives config reset',async()=>{
  const x=environment({models:[A,B],scheduling:'round-robin'});await x.enable();
@@ -78,20 +78,20 @@ test('a cancelled reservation is spent conservatively, but no send is claimed',a
  assert.equal(x.sends,0);assert.equal(x.pool.rotation.cursor,1);assert.equal(x.disk.rotation.cursor,1);
 });
 test('new targets require route consent; structural changes require an explicit new allowance',async()=>{
- const x=environment();await assert.rejects(x.pool.saveDraft({...freePoolDefaults(),enabled:true,models:[K,Z]},x.pool.config,{restart:true}),/consent/);await x.enable();
+ const x=environment();await assert.rejects(x.pool.saveDraft({...freePoolDefaults(),enabled:true,models:[K,K2]},x.pool.config,{restart:true}),/consent/);await x.enable();
  await assert.rejects(x.pool.saveDraft({...x.pool.config,weights:{[K]:3}},x.pool.config,{consent:true}),/restart/);
 });
 test('actual compatibility rejects unfinished tools, images, absent tools, overlong context, removed thinking and paid entries',async()=>{
- const x=environment();await x.enable();const a=x.model(K),b=x.model(Z),base=context();assert.equal(x.pool.reason(a,b,base,{}),null);
+ const x=environment();await x.enable();const a=x.model(K),b=x.model(K2),base=context();assert.equal(x.pool.reason(a,b,base,{}),null);
  const pending={messages:[{role:'assistant',content:[{type:'toolCall',id:'t',name:'read',arguments:{}}]}]};assert.match(x.pool.reason(a,b,pending,{}),/Unresolved/);
  assert.match(x.pool.reason(a,b,{messages:[{role:'user',content:[{type:'image',data:'x'}]}]},{}),/multimodal/);
  assert.match(x.pool.reason(a,b,{messages:[{role:'user',content:'x'.repeat(3000000)}]},{}),/budget|fit/);
- const old=x.catalog.state.entries[Z];x.catalog.state.entries[Z]={...old,classification:'paid'};assert.match(x.pool.reason(a,b,base,{}),/eligible/);
+ const old=x.catalog.state.entries[K2];x.catalog.state.entries[K2]={...old,classification:'paid'};assert.match(x.pool.reason(a,b,base,{}),/eligible/);
 });
 test('disk round trip keeps cursor, finite exhaustion, provider cooldown and OVH reservations',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'free-persist-'));try{
-  const x=environment({cycles:1});await x.enable();await x.next();await x.pool.observe('beam-free',new Response('',{status:429,headers:{'retry-after':'2'}}),{},'zen');
-  const file=join(dir,'pool.json');await writeFile(file,JSON.stringify(x.disk));const restored=new FreePool({catalog:x.catalog,ovhPool:x.ovh,file,now:()=>x.now});await restored.load();assert.equal(restored.installed,true);assert.equal(restored.rotation.cursor,1);assert.equal(restored.until(Z),3000);
+  const x=environment({cycles:1});await x.enable();await x.next();await x.pool.observe('thinkingmachines/inkling-small:free',new Response('',{status:429,headers:{'retry-after':'2'}}),{},'kilo');
+  const file=join(dir,'pool.json');await writeFile(file,JSON.stringify(x.disk));const restored=new FreePool({catalog:x.catalog,ovhPool:x.ovh,file,now:()=>x.now});await restored.load();assert.equal(restored.installed,true);assert.equal(restored.rotation.cursor,1);assert.equal(restored.until(K2),3000);
   await assert.rejects(restored.choose(x.model(K),context(),{}),/paused/);assert.equal(restored.rotation.paused,true);
   const again=new FreePool({catalog:x.catalog,ovhPool:x.ovh,file,now:()=>x.now});await again.load();assert.equal(again.rotation.paused,true);
  }finally{await rm(dir,{recursive:true,force:true});}
@@ -115,16 +115,16 @@ test('editor Escape and rejected review save nothing, preserve active model; aff
 
 test('reviewed editor saves a mixed weighted finite pool, asks routing consent, and keeps the active model by default',async()=>{
  const x=environment(),menus=[],inputs=['3','4','1'];
- const choices=[o=>o.find(v=>v==='Edit model order'),o=>o.find(v=>v==='free-kilo / reflection/beam-free'),o=>o.find(v=>v==='free-zen / beam-free'),()=> 'Use this order',()=> 'Edit requests per visit',o=>o.find(v=>v.startsWith(K)),o=>o.find(v=>v.startsWith(Z)),()=> 'Back',o=>o.find(v=>v.startsWith('Cycles:')),o=>o.find(v=>v.startsWith('Pool:')),()=> 'Apply settings'];
+ const choices=[o=>o.find(v=>v==='Edit model order'),o=>o.find(v=>v==='free-kilo / reflection/beam-free'),o=>o.find(v=>v==='free-kilo / thinkingmachines/inkling-small:free'),()=> 'Use this order',()=> 'Edit requests per visit',o=>o.find(v=>v.startsWith(K)),o=>o.find(v=>v.startsWith(K2)),()=> 'Back',o=>o.find(v=>v.startsWith('Cycles:')),o=>o.find(v=>v.startsWith('Pool:')),()=> 'Apply settings'];
  let review='',setModels=0;
  const ctx={hasUI:true,model:{provider:'other',id:'keep'},isIdle:()=>true,ui:{select:async(title,options)=>{menus.push(title);const f=choices.shift();assert.ok(f,title);return f(options);},input:async()=>inputs.shift(),confirm:async(title,text)=>{review=text;return true;}}};
  const before=ctx.model;const result=await editFreePool(x.pool,{setModel:async()=>{setModels++;return false;}},ctx);
  assert.match(result,/settings saved/);assert.equal(setModels,0);assert.equal(ctx.model,before);assert.match(review,/PROVIDER ROUTING CONSENT/);
- assert.deepEqual(x.pool.config.models,[K,Z]);assert.equal(x.pool.config.weights[K],3);assert.equal(x.pool.config.weights[Z],4);assert.equal(x.pool.config.cycles,1);assert.equal(x.pool.config.enabled,true);assert.equal(schedulingMode(x.pool.config),'round-robin');assert.equal(x.sends,0);
+ assert.deepEqual(x.pool.config.models,[K,K2]);assert.equal(x.pool.config.weights[K],3);assert.equal(x.pool.config.weights[K2],4);assert.equal(x.pool.config.cycles,1);assert.equal(x.pool.config.enabled,true);assert.equal(schedulingMode(x.pool.config),'round-robin');assert.equal(x.sends,0);
 });
 
 test('priority editor hides round-robin-only weights/cycles; selecting priority explicitly clears finite cycles in the reviewed draft',async()=>{
- const x=environment({models:[K,Z],cycles:1}),seen=[];let n=0;
+ const x=environment({models:[K,K2],cycles:1}),seen=[];let n=0;
  const ctx={hasUI:true,model:{provider:'other',id:'keep'},isIdle:()=>true,ui:{select:async(_title,options)=>{seen.push(options);if(n++===0)return options.find(v=>v.startsWith('Scheduling:'));if(n===2)return 'priority';assert.equal(options.includes('Edit requests per visit'),false);assert.equal(options.some(v=>v.startsWith('Cycles:')),false);return 'Apply settings';},input:async()=>undefined,confirm:async(_title,text)=>{assert.match(text,/scheduling: priority; cycles: continuous/);return true;}}};
  const result=await editFreePool(x.pool,{},ctx);assert.match(result,/settings saved/);assert.equal(x.pool.config.cycles,0);assert.equal(x.pool.config.scheduling,'priority');assert.equal(x.sends,0);
 });

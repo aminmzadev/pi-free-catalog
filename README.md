@@ -11,7 +11,7 @@
 
 ![Architecture: public metadata feeds become a validated Pages snapshot and local Pi catalog; inference goes directly to the selected provider, not through the catalog host.](https://raw.githubusercontent.com/aminmzadev/pi-free-catalog/main/docs/assets/catalog-overview.svg)
 
-Use eligible **free AI models** from **Kilo**, **OpenCode Zen** and **OVHcloud AI Endpoints** in your [Pi coding agent](https://pi.dev). Explore their capabilities, adjust native thinking settings, and pick a model or build your own Free Pool. Only models with free-access evidence are eligible. No personal provider API key or paid fallback.
+Use eligible **free AI models** from **Kilo** and **OVHcloud AI Endpoints** in your [Pi coding agent](https://pi.dev). Explore their capabilities, adjust native thinking settings, and pick a model or build your own Free Pool. Only models with free-access evidence are eligible. No personal provider API key or paid fallback.
 
 [Quick start](https://github.com/aminmzadev/pi-free-catalog#quick-start) · [Commands](https://github.com/aminmzadev/pi-free-catalog#everyday-commands) · [Free Pool](https://github.com/aminmzadev/pi-free-catalog#general-free-pool) · [Reference](https://github.com/aminmzadev/pi-free-catalog/blob/main/REFERENCE.md) · [Changelog](https://github.com/aminmzadev/pi-free-catalog/blob/main/CHANGELOG.md)
 
@@ -49,7 +49,6 @@ To keep a local installation, use `pi install /absolute/path/to/pi-free-catalog`
 | Provider ID | Service | What to expect |
 |---|---|---|
 | `free-kilo` | Kilo | Free model discovery with model-specific pricing and capabilities. |
-| `free-zen` | OpenCode Zen | Model discovery, capability details and native thinking options. |
 | `free-ovh` | OVHcloud AI Endpoints | Anonymous model access with per-model quota tracking. |
 
 Open the model picker or inspect `/free-catalog`. New Free Pools start **OFF**, and the response-start limit is disabled unless you choose it.
@@ -62,7 +61,7 @@ Install through Pi rather than `npm install -g`; this package is an extension, n
 - **Makes models easy to compare.** Search pricing, capabilities, thinking options and lifecycle details in one catalog.
 - **Uses the model's own thinking controls.** Follow Pi's selector or choose an advertised native mode without inventing effort levels the provider does not offer.
 - **Fits into Pi.** Streaming and tool calls use Pi's SDK. The normal footer stays the default, and the optional compact footer leaves model IDs unchanged.
-- **Offers an opt-in general Free Pool.** Mix eligible Kilo, Zen and OVH chat models in your chosen order. Use priority or weighted round robin, with continuous or finite visits. New pools are OFF until enabled.
+- **Offers an opt-in general Free Pool.** Mix eligible Kilo and OVH chat models in your chosen order. Use priority or weighted round robin, with continuous or finite visits. New pools are OFF until enabled.
 
 Provider rate limits and terms still apply. The catalog tracks pricing and lifecycle changes, while pool scheduling respects cooldowns and quota.
 
@@ -74,7 +73,7 @@ Provider rate limits and terms still apply. The catalog tracks pricing and lifec
 | `/free-refresh` | Refresh metadata now; it does not send an inference request. |
 | `/free-thinking` | See the current model's native thinking choices and effective setting. |
 | `/free-thinking MODE` | Follow Pi with `auto`, use the provider's `default`, or select an advertised mode. |
-| `/free-pool` | Configure the general Free Pool across Kilo, Zen and OVH. |
+| `/free-pool` | Configure the general Free Pool across Kilo and OVH. |
 | `/free-pool status` / `preview` | Inspect runtime state or preview the configured visits, without sending requests. |
 | `/free-ovh-pool` | Keep editing a legacy OVH setup; forwards to general settings after migration. |
 | `/free-footer` | Open footer display settings, including the independent chat-count switch. |
@@ -85,7 +84,7 @@ Provider rate limits and terms still apply. The catalog tracks pricing and lifec
 
 Add `--help` to a command for usage without fetching metadata, changing preferences, or writing an export. In the interactive catalog, type to search, use arrows or PageUp/PageDown to scroll, and press Escape to close.
 
-The footer shows `Free chat: Kilo … · Zen … · OVH …` from the current catalog, excluding classifiers and other non-chat models. It remains after replies, errors, aborts and model changes; it is not a pool path. Narrow terminals use shorter labels. Use `/free-footer` or `/free-footer counts off` to hide it immediately, without refreshing metadata or changing the model, thinking, pool, quota, or compact/default appearance. Display choices are saved in `free-catalog/ui.json` inside the agent directory. A save failure is reported while the current session keeps your choice.
+The footer shows `Free chat: Kilo … · OVH …` from the current catalog, excluding classifiers and other non-chat models. It remains after replies, errors, aborts and model changes; it is not a pool path. Narrow terminals use shorter labels. Use `/free-footer` or `/free-footer counts off` to hide it immediately, without refreshing metadata or changing the model, thinking, pool, quota, or compact/default appearance. Display choices are saved in `free-catalog/ui.json` inside the agent directory. A save failure is reported while the current session keeps your choice.
 
 ## General Free Pool
 
@@ -98,9 +97,9 @@ A same-response handoff is allowed only for an owned silent-start timeout or a q
 <details>
 <summary><strong>Scheduling, cooldowns, persistence and diagnostics</strong></summary>
 
-Automatic scheduling defaults to **round robin for Kilo/Zen-only pools**, so an always-ready first model does not monopolize the pool. If any OVH model is present, Automatic uses ordered priority; you can explicitly select round robin or priority. Existing OVH setups keep their priority behavior until explicitly migrated.
+Automatic scheduling defaults to **round robin for Kilo-only pools**, so an always-ready first model does not monopolize the pool. If any OVH model is present, Automatic uses ordered priority; you can explicitly select round robin or priority. Existing OVH setups keep their priority behavior until explicitly migrated.
 
-In round robin, weights of `3 / 4 / 1` mean three actual requests to the first model, four to the second, one to the third, then repeat. **OVH accepts only 1 or 2 per visit, default 2.** Kilo/Zen default to 1 and allow 1–100; these are scheduling weights, not claims about provider capacity. The existing OVH quota ledger and server cooldowns always take precedence.
+In round robin, weights of `3 / 4 / 1` mean three actual requests to the first model, four to the second, one to the third, then repeat. **OVH accepts only 1 or 2 per visit, default 2.** Kilo default to 1 and allow 1–100; these are scheduling weights, not claims about provider capacity. The existing OVH quota ledger and server cooldowns always take precedence.
 Requests-per-visit and cycle fields appear only in round-robin mode. Selecting
 priority clears the finite cycle allowance in the draft, before review.
 
@@ -110,11 +109,11 @@ A reservation is atomically saved before a managed HTTP send. A crash or cancell
 
 Switching occurs only at safe request boundaries, never after meaningful text, thinking or tool-call activity or during unresolved tool calls. Tool-continuation requests count, while completed tool effects are not repeated. The general pool now explicitly permits **pre-activity HTTP 429 failover** to an untried ready compatible model within the same response. Each exact provider/model gets at most one attempt in that logical inference; failed attempts are not refunded. Auth, network, invalid-request and other HTTP failures do not authorize replay. The owned silent response-start deadline remains a separate narrowly scoped exception.
 
-**Kilo/Zen cooldowns are model-local by default**, using Retry-After or the labelled 61-second model-local package backoff when a 429 supplies no valid deadline. Retry-After alone is not evidence of a service-wide limit. An explicit `X-Ratelimit-Scope: provider|service|global|account|ip` declaration creates a broader gate that remains respected. No model RPM or paid/credential workaround is invented. If all configured candidates are cooling, incompatible or already attempted, the chain stops boundedly with an unavailable report; it does not disable a continuous pool or generate requests to finish loops.
+**Kilo cooldowns are model-local by default**, using Retry-After or the labelled 61-second model-local package backoff when a 429 supplies no valid deadline. Retry-After alone is not evidence of a service-wide limit. An explicit `X-Ratelimit-Scope: provider|service|global|account|ip` declaration creates a broader gate that remains respected. No model RPM or paid/credential workaround is invented. If all configured candidates are cooling, incompatible or already attempted, the chain stops boundedly with an unavailable report; it does not disable a continuous pool or generate requests to finish loops.
 
-Version 0.1.7 applies a one-time **continuous-mode upgrade** to existing general configurations: valid old finite-only pauses are removed, cursor/counters and OVH quota are kept, and the policy marker is durably saved before dispatch. Old blanket Kilo/Zen policy gates are reassigned to every recoverable originating model deadline; an untraceable blanket heuristic is retired with a visible notice, not guessed onto all models. Invalid runtime/storage is never automatically resumed. Later manually reviewed finite settings remain available and are not silently overwritten.
+Version 0.1.7 applies a one-time **continuous-mode upgrade** to existing general configurations: valid old finite-only pauses are removed, cursor/counters and OVH quota are kept, and the policy marker is durably saved before dispatch. Old blanket Kilo policy gates are reassigned to every recoverable originating model deadline; an untraceable blanket heuristic is retired with a visible notice, not guessed onto all models. Invalid runtime/storage is never automatically resumed. Later manually reviewed finite settings remain available and are not silently overwritten.
 
-Cross-provider routing can disclose the conversation and tool results to every selected service; the review explicitly asks for this consent. Metadata eligibility is not live inference certification, particularly for Zen. The pool uses the unchanged anonymous route guards. Currently verified pool transports are native OpenAI Completions and Responses. Pi 1.4's Anthropic adapter adds a beta query rejected by those guards; such entries remain in the catalog and are explained as unsupported in pool status, not silently sent through an unguarded adapter.
+Cross-provider routing can disclose the conversation and tool results to every selected service; the review explicitly asks for this consent. The pool uses the unchanged anonymous route guards. Currently verified pool transports are native OpenAI Completions and Responses. Pi 1.4's Anthropic adapter adds a beta query rejected by those guards; such entries remain in the catalog and are explained as unsupported in pool status, not silently sent through an unguarded adapter.
 
 ### Understanding pool status and failures
 
@@ -125,7 +124,7 @@ model fits the current conversation. Historical “cooling down” can remain af
 that block expires; it is clearly marked as history.
 
 For new cooldowns, status records the triggering service/model, HTTP status,
-observation time, deadline and source. Kilo/Zen gates default to the exact model;
+observation time, deadline and source. Kilo gates default to the exact model;
 broader gates need the explicit server scope header described above. The 61-second
 fallback remains a package backoff, not a verified capacity limit. The latest 128
 response records survive restart; status/preview sends no requests and stores no
@@ -151,7 +150,7 @@ would explicitly restart. Neither preview sends requests or fetches metadata.
 
 The illustration separates metadata delivery from inference:
 
-1. **Collect:** the backend fetches seven fixed public metadata sources for Kilo, Zen and OVHcloud.
+1. **Collect:** the backend fetches three fixed public metadata sources for Kilo and OVHcloud.
 2. **Validate:** schema, source integrity, production rules and historical evidence are checked before a Pages snapshot is deployed.
 3. **Load:** Pi registers usable cached models, then refreshes at startup or explicit `/free-refresh`. Invalid or stale Pages data can trigger direct-source recovery.
 4. **Infer directly:** prompts and tool results go from Pi to the selected upstream provider. The catalog host is not a prompt proxy.
@@ -163,24 +162,31 @@ The backend cron requests a 15-minute schedule; GitHub scheduling and CDN propag
 A name containing “free” is not enough. The extension checks provider listings against pricing and anonymous-access evidence:
 
 - **Kilo:** starts with the explicit `isFree` flag. Conflicting positive charges block free access.
-- **OpenCode Zen:** joins exact model IDs with official metadata, models.dev, and Pi metadata. Input, output, cache, and tiered charges matter; missing prices are not assumed to be zero.
 - **OVHcloud:** checks the documented anonymous-access lane. A commercial rate card is not proof that the anonymous lane is paid, nor permission to use authenticated paid access.
 
 Models with missing or conflicting evidence remain inspectable but are not newly registered as free. Incomplete refresh data can preserve an already confirmed-free model's last-known evidence; fresh paid, withdrawn, or retired evidence still blocks it.
 
-Chat models appear in the picker. Native classifiers are registered separately, while embeddings and other unsupported operations stay in reports instead of being sent through a chat endpoint. A chat model without advertised tools is labelled accordingly.
+Chat models appear in the picker. Classifiers, embeddings and other unsupported operations stay in reports instead of being sent through a chat endpoint. A chat model without advertised tools is labelled accordingly.
 
 ## Refreshes that do not interrupt a conversation
 
-On startup and explicit `/free-refresh`, the extension first tries the public [GitHub Pages catalog snapshot](https://aminmzadev.github.io/pi-free-catalog/catalog/v1/latest.json). A valid snapshot uses one metadata request instead of seven direct-source requests. It is checked for structure, timestamps, integrity, and compatibility with the production rules before use. Downloaded content is JSON data, never executable code.
+On startup and explicit `/free-refresh`, the extension first tries the public [GitHub Pages catalog snapshot](https://aminmzadev.github.io/pi-free-catalog/catalog/v2/latest.json). A valid snapshot uses one metadata request instead of three direct-source requests. It is checked for structure, timestamps, integrity, and compatibility with the production rules before use. Downloaded content is JSON data, never executable code.
 
-If Pages is unavailable, invalid, incompatible, or too old, the client tries the seven sources directly. A failed refresh preserves usable cached evidence. The **45-minute source-age threshold triggers recovery; it does not expire cached inference**.
+If Pages is unavailable, invalid, incompatible, or too old, the client tries the three sources directly. A failed refresh preserves usable cached evidence. The **45-minute source-age threshold triggers recovery; it does not expire cached inference**.
 
 There is no catalog polling in the extension. After startup, only `/free-refresh` starts another refresh; prompts, model switches, and thinking changes do not. The separately scheduled backend can publish newer snapshots without forcing a refresh into your current session.
 
 The cache lives in `free-catalog/catalog.json` inside Pi's agent directory, normally `~/.pi/agent/free-catalog/`. Despite its filename, it is gzip-compressed JSON. `/free-export` produces a readable copy.
 
 Missing from a provider list, deprecated, retired, and temporarily failing are different states. A timeout or 429 is not treated as proof of retirement. History remains available in the catalog instead of silently disappearing.
+
+## Upgrading from an earlier version
+
+The OpenCode provider is removed in 0.1.8. Kilo and OVH models remain available, including models offered by those providers under their own IDs. Saved Kilo/OVH catalog history, thinking preferences, cooldowns and OVH accounting are retained.
+
+A pool that contained the removed provider is disabled and paused for review; its remaining members and settings are preserved. Open `/free-pool`, review the remaining selection and explicitly restart it before enabling. If your active model belonged to the removed provider, choose another model yourself; the extension does not silently select a replacement.
+
+The two-provider snapshot uses `catalog/v2`. The catalog workflow no longer publishes the old v1 feed. Older extension versions can use their existing direct-source recovery, but need an upgrade to use the new Pages feed.
 
 ## Thinking controls
 
@@ -284,9 +290,9 @@ More detailed contracts and test procedures are included in `REFERENCE.md`.
 
 Anonymous access means no personal credentials are required. It does **not** promise private processing, zero retention, or permission to send sensitive data. Prompts and tool results still go to the selected upstream provider; check its current terms before use.
 
-Before each HTTP request, scoped guards check the model, approved endpoint, free-access evidence, and retirement deadlines. Redirects and paid fallback are blocked. Caller credentials are removed before public/anonymous headers are applied; Zen uses the literal public placeholder `Bearer public`, not your personal token.
+Before each HTTP request, scoped guards check the model, approved endpoint, free-access evidence, and retirement deadlines. Redirects and paid fallback are blocked. Caller credentials are removed before public/anonymous headers are applied.
 
-This is an independent extension, not an official Kilo, OpenCode or OVHcloud product. Text and image inputs are supported where implemented. The catalog labels unknown limits and uses conservative local defaults.
+This is an independent extension, not an official Kilo or OVHcloud product. Text and image inputs are supported where implemented. The catalog labels unknown limits and uses conservative local defaults.
 
 The normal Pi footer remains the default. Compact mode uses Pi's public renderer and claims its single custom-footer slot only when explicitly requested. It does not rename providers, alter picker IDs, or patch Pi's editor. See the reference before combining custom-footer extensions.
 
